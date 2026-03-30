@@ -38,9 +38,3 @@ python main.py
 ### Credenciales por defecto
 - **Usuario:** admin
 - **Contraseña:** admin123
-
-### Próximos pasos
-1. Crear interfaz de Login
-2. Crear Menú Principal
-3. Crear Formularios (Entradas, Salidas, Stock)
-4. Conectar lógica de datos
