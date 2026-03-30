@@ -1,0 +1,21 @@
+{
+  "inventario": [
+    {
+      "tipo_entrada": "Cliente",
+      "fecha": "21/03/2026",
+      "codigo": "12",
+      "nombre": "Hidróxido de Sodio",
+      "proveedor": "Proveedor A",
+      "lote": "15",
+      "costo_unitario": "12000",
+      "cantidad": 1000.0,
+      "unidad": "Kilogramo",
+      "cantidad_minima": 200.0,
+      "concentracion": "40%",
+      "densidad": "1,2",
+      "ubicacion": "Estante B",
+      "stock": 1000.0,
+      "id": 1
+    }
+  ]
+}

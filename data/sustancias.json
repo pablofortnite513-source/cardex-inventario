@@ -1,0 +1,24 @@
+{
+  "sustancias": [
+    {
+      "id": 1,
+      "codigo": "SUB001",
+      "nombre": "Ácido Clorhídrico",
+      "concentracion": "37%",
+      "densidad": "1.18",
+      "unidad": "L"
+    },
+    {
+      "id": 2,
+      "codigo": "SUB002",
+      "nombre": "Hidróxido de Sodio",
+      "concentracion": "50%",
+      "densidad": "1.52",
+      "unidad": "kg"
+    },
+    {
+      "nombre": "Cloro",
+      "id": 3
+    }
+  ]
+}

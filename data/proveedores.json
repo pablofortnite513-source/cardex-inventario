@@ -1,0 +1,16 @@
+{
+  "proveedores": [
+    {
+      "id": 1,
+      "nombre": "Proveedor A",
+      "contacto": "info@proveedora.com",
+      "telefono": "+57 300 1234567"
+    },
+    {
+      "id": 2,
+      "nombre": "Proveedor B",
+      "contacto": "info@proveedorb.com",
+      "telefono": "+57 300 7654321"
+    }
+  ]
+}

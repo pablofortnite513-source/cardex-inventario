@@ -1,0 +1,22 @@
+{
+  "ubicaciones": [
+    {
+      "id": 1,
+      "codigo": "UB001",
+      "nombre": "Estante A",
+      "almacen": "Almacén Central"
+    },
+    {
+      "id": 2,
+      "codigo": "UB002",
+      "nombre": "Estante B",
+      "almacen": "Almacén Central"
+    },
+    {
+      "id": 3,
+      "codigo": "UB003",
+      "nombre": "Refrigeración",
+      "almacen": "Almacén Frío"
+    }
+  ]
+}

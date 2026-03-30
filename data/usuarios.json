@@ -1,0 +1,32 @@
+{
+  "usuarios": [
+    {
+      "id": 1,
+      "usuario": "admin",
+      "contrasena": "admin123",
+      "nombre": "Administrador",
+      "rol": "Admin"
+    },
+    {
+      "id": 2,
+      "usuario": "operario",
+      "contrasena": "op123",
+      "nombre": "Operario",
+      "rol": "Operario"
+    },
+    {
+      "nombre": "Pablo Piedrahita Ramirez",
+      "usuario": "pablosky",
+      "contrasena": "pablo2008",
+      "rol": "TESTER",
+      "id": 3
+    },
+    {
+      "nombre": "Angela Ramirez",
+      "usuario": "Angie",
+      "contrasena": "angelaboba",
+      "rol": "NINGUNO",
+      "id": 4
+    }
+  ]
+}

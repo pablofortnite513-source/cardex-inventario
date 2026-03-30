@@ -1,0 +1,29 @@
+{
+  "unidades": [
+    {
+      "id": 1,
+      "codigo": "L",
+      "nombre": "Litro"
+    },
+    {
+      "id": 2,
+      "codigo": "kg",
+      "nombre": "Kilogramo"
+    },
+    {
+      "id": 3,
+      "codigo": "g",
+      "nombre": "Gramo"
+    },
+    {
+      "id": 4,
+      "codigo": "ml",
+      "nombre": "Mililitro"
+    },
+    {
+      "id": 5,
+      "codigo": "m",
+      "nombre": "Metro"
+    }
+  ]
+}
