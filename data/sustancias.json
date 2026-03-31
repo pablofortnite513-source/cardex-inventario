@@ -6,7 +6,9 @@
       "nombre": "Ácido Clorhídrico",
       "concentracion": "37%",
       "densidad": "1.18",
-      "unidad": "L"
+      "unidad": "Litro",
+      "codigo_sistema": "AC-001",
+      "codigo_cas": "7647-01-0"
     },
     {
       "id": 2,
@@ -14,11 +16,39 @@
       "nombre": "Hidróxido de Sodio",
       "concentracion": "50%",
       "densidad": "1.52",
-      "unidad": "kg"
+      "unidad": "Kilogramo",
+      "codigo_sistema": "AC-002",
+      "codigo_cas": "1310-73-2"
     },
     {
-      "nombre": "Cloro",
-      "id": 3
+      "id": 3,
+      "codigo": "SUB003",
+      "nombre": "Etanol Absoluto",
+      "concentracion": "99.9%",
+      "densidad": "0.789",
+      "unidad": "Litro",
+      "codigo_sistema": "AC-003",
+      "codigo_cas": "64-17-5"
+    },
+    {
+      "id": 4,
+      "codigo": "SUB004",
+      "nombre": "Ácido Sulfúrico",
+      "concentracion": "98%",
+      "densidad": "1.84",
+      "unidad": "Litro",
+      "codigo_sistema": "AC-004",
+      "codigo_cas": "7664-93-9"
+    },
+    {
+      "id": 5,
+      "codigo": "SUB005",
+      "nombre": "Cloruro de Sodio",
+      "concentracion": "99.5%",
+      "densidad": "2.16",
+      "unidad": "Kilogramo",
+      "codigo_sistema": "AC-005",
+      "codigo_cas": "7647-14-5"
     }
   ]
 }

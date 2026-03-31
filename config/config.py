@@ -1,4 +1,5 @@
 # Configuración del Proyecto - CECIF Kardex Inventario
+from pathlib import Path
 
 # Colores (basados en imágenes del proyecto)
 COLORS = {
@@ -21,13 +22,19 @@ PROJECT_NAME = "CECIF - Kardex Reactivos"
 VERSION = "1.0.0"
 
 # Rutas
-DATA_PATH = "data/"
-USERS_FILE = f"{DATA_PATH}usuarios.json"
-SUSTANCIAS_FILE = f"{DATA_PATH}sustancias.json"
-PROVEEDORES_FILE = f"{DATA_PATH}proveedores.json"
-UNIDADES_FILE = f"{DATA_PATH}unidades.json"
-UBICACIONES_FILE = f"{DATA_PATH}ubicaciones.json"
-INVENTARIO_FILE = f"{DATA_PATH}inventario.json"
-TIPOS_ENTRADA_FILE = f"{DATA_PATH}tipos_entrada.json"
-ALMACENES_FILE = f"{DATA_PATH}almacenes.json"
-SALIDAS_FILE = f"{DATA_PATH}salidas.json"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_PATH = PROJECT_ROOT / "data"
+IMAGES_PATH = PROJECT_ROOT / "Imagenes"
+USERS_FILE = DATA_PATH / "usuarios.json"
+SUSTANCIAS_FILE = DATA_PATH / "sustancias.json"
+PROVEEDORES_FILE = DATA_PATH / "proveedores.json"
+UNIDADES_FILE = DATA_PATH / "unidades.json"
+UBICACIONES_FILE = DATA_PATH / "ubicaciones.json"
+INVENTARIO_FILE = DATA_PATH / "inventario.json"
+ENTRADAS_FILE = DATA_PATH / "entradas.json"
+TIPOS_ENTRADA_FILE = DATA_PATH / "tipos_entrada.json"
+TIPOS_SALIDA_FILE = DATA_PATH / "tipos_salida.json"
+CONDICIONES_FILE = DATA_PATH / "condiciones_almacenamiento.json"
+ALMACENES_FILE = DATA_PATH / "almacenes.json"
+SALIDAS_FILE = DATA_PATH / "salidas.json"
+BITACORA_FILE = DATA_PATH / "bitacora.json"

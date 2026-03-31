@@ -92,9 +92,7 @@ class LoginWindow:
             messagebox.showerror("Error", "Completa usuario y contrasena")
             return
         
-        if usuario == "adolfo":
-            messagebox.showinfo("Acceso denegado.", "El usuario 'adolfo' no tiene acceso al sistema.")
-
+       
         data = DataHandler.load_json(USERS_FILE)
         usuarios = data.get("usuarios", [])
 

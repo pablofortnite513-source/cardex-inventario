@@ -1,0 +1,36 @@
+# ============================================================
+# CECIF - Kardex Reactivos v1.0
+# Dependencias del proyecto
+# ============================================================
+#
+# Dependencia externa necesaria para cargar imágenes (JPG/PNG)
+# en la interfaz Tkinter.
+
+Pillow>=10.0.0\ntkcalendar>=1.6.1
+#
+# Módulos estándar utilizados:
+#   - tkinter     (interfaz gráfica)
+#   - datetime    (manejo de fechas)
+#   - json        (lectura/escritura de datos)
+#   - os          (operaciones del sistema de archivos)
+#   - pathlib     (rutas del sistema)
+#   - importlib   (importación dinámica de módulos)
+#   - typing      (anotaciones de tipo)
+#
+# ============================================================
+# REQUISITO: Python 3.10 o superior
+# ============================================================
+#
+# NOTA IMPORTANTE para Windows:
+#   tkinter viene incluido con el instalador oficial de Python.
+#   Si no está disponible, reinstala Python desde:
+#   https://www.python.org/downloads/
+#   y asegúrate de marcar la opción "tcl/tk and IDLE".
+#
+# Para crear el entorno virtual y ejecutar el proyecto:
+#
+#   python -m venv .venv
+#   .venv\Scripts\activate
+#   python main.py
+#
+# ============================================================

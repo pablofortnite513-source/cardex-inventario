@@ -1,0 +1,37 @@
+{
+  "bitacora": [
+    {
+      "fecha_hora": "2026-03-30 22:55:29",
+      "usuario": "Administrador",
+      "tipo_operacion": "Crear",
+      "hoja": "Salidas",
+      "id_registro": "8",
+      "campo": "salida_completa",
+      "valor_anterior": "",
+      "valor_nuevo": "SUB002 | Lote: LOT-2026-002 | Cant: 12.0",
+      "id": 1
+    },
+    {
+      "fecha_hora": "2026-03-30 23:03:07",
+      "usuario": "Administrador",
+      "tipo_operacion": "Salida",
+      "hoja": "Análisis",
+      "id_registro": "9",
+      "campo": "salida_completa",
+      "valor_anterior": "",
+      "valor_nuevo": "SUB004 | Lote: LOT-2026-004 | Cant: 15.0",
+      "id": 2
+    },
+    {
+      "fecha_hora": "2026-03-30 23:53:44",
+      "usuario": "Administrador",
+      "tipo_operacion": "Edición",
+      "hoja": "Salida",
+      "id_registro": "9",
+      "campo": "cantidad",
+      "valor_anterior": "15.0",
+      "valor_nuevo": "16.0",
+      "id": 3
+    }
+  ]
+}

@@ -3,26 +3,33 @@ from datetime import date, datetime
 from tkinter import messagebox
 from tkinter import ttk
 
+from tkcalendar import DateEntry
+
 from config.config import (
     COLORS,
-    INVENTARIO_FILE,
+    CONDICIONES_FILE,
+    ENTRADAS_FILE,
     PROVEEDORES_FILE,
     SUSTANCIAS_FILE,
     TIPOS_ENTRADA_FILE,
     UBICACIONES_FILE,
     UNIDADES_FILE,
 )
+from ui.bitacora import registrar_bitacora
 from utils.data_handler import DataHandler
 
 
 class EntryFormWindow:
-    """Formulario de entradas con secciones similares al diseno solicitado."""
+    """Formulario de entradas – lógica alineada al Excel Kardex."""
 
-    def __init__(self, parent: tk.Tk):
+    def __init__(self, parent: tk.Tk, usuario: str = "", rol: str = ""):
         self.window = tk.Toplevel(parent)
         self.window.title("Sistema de Gestion - Entradas")
-        self.window.geometry("1240x700")
+        self.window.geometry("1280x860")
         self.window.configure(bg=COLORS["secondary"])
+        self.usuario = usuario
+        self.rol = rol.lower()
+        self.editing_id: int | None = None  # ID del registro en edición
 
         self.catalogs: dict[str, list[dict]] = {}
 
@@ -37,17 +44,18 @@ class EntryFormWindow:
 
         self.cantidad_var = tk.StringVar()
         self.presentacion_var = tk.StringVar()
-        self.total_var = tk.StringVar(value="0")
+        self.total_var = tk.StringVar()          # Editable – contenido neto real
         self.unidad_var = tk.StringVar()
         self.concentracion_var = tk.StringVar()
         self.densidad_var = tk.StringVar()
         self.proveedor_var = tk.StringVar()
+        self.codigo_contable_var = tk.StringVar()
 
         self.certificado_var = tk.BooleanVar(value=False)
         self.msds_var = tk.BooleanVar(value=False)
         self.fecha_venc_var = tk.StringVar()
         self.fecha_doc_var = tk.StringVar()
-        self.vigencia_doc_var = tk.StringVar()
+        self.vigencia_doc_var = tk.StringVar()   # Fecha calculada (Fecha Doc + 5 años)
 
         self.ubicacion_var = tk.StringVar()
         self.condicion_var = tk.StringVar()
@@ -57,11 +65,16 @@ class EntryFormWindow:
         self.unidad_combo: ttk.Combobox | None = None
         self.proveedor_combo: ttk.Combobox | None = None
         self.ubicacion_combo: ttk.Combobox | None = None
+        self.condicion_combo: ttk.Combobox | None = None
         self.observaciones_text: tk.Text | None = None
+        self.history_tree: ttk.Treeview | None = None
+        self.save_btn: tk.Button | None = None
 
         self._load_catalogs()
         self._build_ui()
         self._bind_events()
+
+    # ── catálogos ──────────────────────────────────────────────
 
     def _load_catalogs(self) -> None:
         tipos = DataHandler.load_json(TIPOS_ENTRADA_FILE).get("tipos_entrada", [])
@@ -69,6 +82,7 @@ class EntryFormWindow:
         unidades = DataHandler.load_json(UNIDADES_FILE).get("unidades", [])
         proveedores = DataHandler.load_json(PROVEEDORES_FILE).get("proveedores", [])
         ubicaciones = DataHandler.load_json(UBICACIONES_FILE).get("ubicaciones", [])
+        condiciones = DataHandler.load_json(CONDICIONES_FILE).get("condiciones_almacenamiento", [])
 
         self.catalogs = {
             "tipos": tipos,
@@ -76,7 +90,10 @@ class EntryFormWindow:
             "unidades": unidades,
             "proveedores": proveedores,
             "ubicaciones": ubicaciones,
+            "condiciones": condiciones,
         }
+
+    # ── UI ─────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
         wrapper = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=14, pady=14)
@@ -91,6 +108,7 @@ class EntryFormWindow:
             pady=6,
         ).pack(fill="x", pady=(0, 10))
 
+        # ── fila superior: Info General + Costos ──
         top = tk.Frame(wrapper, bg="white")
         top.pack(fill="x", pady=(0, 10))
         top.columnconfigure(0, weight=4)
@@ -100,24 +118,16 @@ class EntryFormWindow:
         general.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
         self.tipo_combo = self._add_combo(
-            general,
-            "Tipo Entrada",
-            self.tipo_entrada_var,
-            [x.get("nombre", "") for x in self.catalogs["tipos"] if x.get("nombre")],
-            0,
-            0,
+            general, "Tipo Entrada", self.tipo_entrada_var,
+            [x.get("nombre", "") for x in self.catalogs["tipos"] if x.get("nombre")], 0, 0,
         )
-        self._add_entry(general, "Fecha Entrada", self.fecha_entrada_var, 0, 1)
+        self._add_date_entry(general, "Fecha Entrada", self.fecha_entrada_var, 0, 1)
         self.codigo_combo = self._add_combo(
-            general,
-            "Codigo",
-            self.codigo_var,
-            self._sustancia_codes(),
-            0,
-            2,
+            general, "Codigo", self.codigo_var, self._sustancia_codes(), 0, 2,
         )
         self._add_entry(general, "Nombre del Producto", self.nombre_var, 0, 3, readonly=True)
-        self._add_entry(general, "Lote", self.lote_var, 0, 4)
+        self._add_entry(general, "Codigo Contable", self.codigo_contable_var, 0, 4, readonly=True)
+        self._add_entry(general, "Lote", self.lote_var, 1, 0)
 
         costos = tk.LabelFrame(top, text="Costos", bg="white", fg="#1F4F8A", font=("Segoe UI", 11, "bold"))
         costos.grid(row=0, column=1, sticky="nsew")
@@ -125,6 +135,7 @@ class EntryFormWindow:
         self._add_entry(costos, "Costo Unitario", self.costo_unitario_var, 0, 0)
         self._add_entry(costos, "Costo Total", self.costo_total_var, 0, 1, readonly=True)
 
+        # ── fila media: Detalles + Documentación ──
         middle = tk.Frame(wrapper, bg="white")
         middle.pack(fill="x", pady=(0, 10))
         middle.columnconfigure(0, weight=3)
@@ -135,25 +146,17 @@ class EntryFormWindow:
 
         self._add_entry(detalles, "Cantidad", self.cantidad_var, 0, 0)
         self._add_entry(detalles, "Presentacion", self.presentacion_var, 0, 1)
-        self._add_entry(detalles, "Total", self.total_var, 0, 2, readonly=True)
+        # Total es EDITABLE – contenido neto real (no calculado)
+        self._add_entry(detalles, "Total (contenido neto)", self.total_var, 0, 2)
         self.unidad_combo = self._add_combo(
-            detalles,
-            "Unidad",
-            self.unidad_var,
-            [x.get("nombre", "") for x in self.catalogs["unidades"] if x.get("nombre")],
-            0,
-            3,
+            detalles, "Unidad", self.unidad_var,
+            [x.get("nombre", "") for x in self.catalogs["unidades"] if x.get("nombre")], 0, 3,
         )
         self._add_entry(detalles, "Concentracion", self.concentracion_var, 0, 4)
         self._add_entry(detalles, "Densidad (g/mL)", self.densidad_var, 0, 5)
         self.proveedor_combo = self._add_combo(
-            detalles,
-            "Nombre del Proveedor",
-            self.proveedor_var,
-            [x.get("nombre", "") for x in self.catalogs["proveedores"] if x.get("nombre")],
-            1,
-            1,
-            col_span=4,
+            detalles, "Proveedor", self.proveedor_var,
+            [x.get("nombre", "") for x in self.catalogs["proveedores"] if x.get("nombre")], 1, 0, col_span=5,
         )
 
         docs = tk.LabelFrame(middle, text="Documentacion Tecnica", bg="white", fg="#1F4F8A", font=("Segoe UI", 11, "bold"))
@@ -166,10 +169,12 @@ class EntryFormWindow:
 
         docs_grid = tk.Frame(docs, bg="white")
         docs_grid.pack(fill="x", padx=10, pady=(0, 10))
-        self._add_entry(docs_grid, "Fecha Vencimiento", self.fecha_venc_var, 0, 0)
-        self._add_entry(docs_grid, "Fecha Documento", self.fecha_doc_var, 0, 1)
+        self._add_date_entry(docs_grid, "Fecha Vencimiento", self.fecha_venc_var, 0, 0)
+        self._add_date_entry(docs_grid, "Fecha Documento", self.fecha_doc_var, 0, 1)
+        # Vigencia Documento = fecha (readonly, calculada como Fecha Doc + 5 años)
         self._add_entry(docs_grid, "Vigencia Documento", self.vigencia_doc_var, 0, 2, readonly=True)
 
+        # ── Almacenamiento y Observaciones ──
         storage = tk.LabelFrame(wrapper, text="Almacenamiento y Observaciones", bg="white", fg="#1F4F8A", font=("Segoe UI", 11, "bold"))
         storage.pack(fill="x", pady=(0, 10))
 
@@ -177,14 +182,13 @@ class EntryFormWindow:
         row_storage.pack(fill="x", padx=10, pady=10)
 
         self.ubicacion_combo = self._add_combo(
-            row_storage,
-            "Ubicacion",
-            self.ubicacion_var,
-            [x.get("nombre", "") for x in self.catalogs["ubicaciones"] if x.get("nombre")],
-            0,
-            0,
+            row_storage, "Ubicacion", self.ubicacion_var,
+            [x.get("nombre", "") for x in self.catalogs["ubicaciones"] if x.get("nombre")], 0, 0,
         )
-        self._add_entry(row_storage, "Condicion de Almacenamiento", self.condicion_var, 0, 1)
+        self.condicion_combo = self._add_combo(
+            row_storage, "Condicion de Almacenamiento", self.condicion_var,
+            [x.get("nombre", "") for x in self.catalogs["condiciones"] if x.get("nombre")], 0, 1,
+        )
 
         obs_frame = tk.Frame(row_storage, bg="white")
         obs_frame.grid(row=0, column=2, sticky="nsew", padx=8)
@@ -196,59 +200,89 @@ class EntryFormWindow:
         row_storage.columnconfigure(1, weight=2)
         row_storage.columnconfigure(2, weight=3)
 
+        # ── Botones ──
         actions = tk.Frame(wrapper, bg="white")
         actions.pack(fill="x")
 
+        self.save_btn = tk.Button(
+            actions, text="Guardar", command=self.save,
+            bg=COLORS["primary"], fg=COLORS["text_light"], relief="flat", padx=22, pady=7,
+        )
+        self.save_btn.pack(side="right", padx=(8, 0))
         tk.Button(
-            actions,
-            text="Guardar",
-            command=self.save,
-            bg=COLORS["primary"],
-            fg=COLORS["text_light"],
-            relief="flat",
-            padx=22,
-            pady=7,
+            actions, text="Limpiar", command=self.clear,
+            bg=COLORS["primary"], fg=COLORS["text_light"], relief="flat", padx=22, pady=7,
         ).pack(side="right", padx=(8, 0))
         tk.Button(
-            actions,
-            text="Limpiar",
-            command=self.clear,
-            bg=COLORS["primary"],
-            fg=COLORS["text_light"],
-            relief="flat",
-            padx=22,
-            pady=7,
+            actions, text="Etiquetas", command=self.show_label_preview,
+            bg="#111111", fg="white", relief="flat", padx=22, pady=7,
         ).pack(side="right", padx=(8, 0))
         tk.Button(
-            actions,
-            text="Etiquetas",
-            command=self.show_label_preview,
-            bg="#111111",
-            fg="white",
-            relief="flat",
-            padx=22,
-            pady=7,
-        ).pack(side="right", padx=(8, 0))
-        tk.Button(
-            actions,
-            text="Salir",
-            command=self.window.destroy,
-            bg=COLORS["primary"],
-            fg=COLORS["text_light"],
-            relief="flat",
-            padx=22,
-            pady=7,
+            actions, text="Salir", command=self.window.destroy,
+            bg=COLORS["primary"], fg=COLORS["text_light"], relief="flat", padx=22, pady=7,
         ).pack(side="right")
 
+        # ── Historial ──
+        hist_frame = tk.LabelFrame(wrapper, text="Historial de Entradas", bg="white", fg="#1F4F8A", font=("Segoe UI", 11, "bold"))
+        hist_frame.pack(fill="both", expand=True, pady=(8, 0))
+
+        hist_cols = ("id", "fecha", "codigo", "nombre", "lote", "total", "unidad", "estado")
+        self.history_tree = ttk.Treeview(hist_frame, columns=hist_cols, show="headings", height=5)
+        self.history_tree.pack(fill="both", expand=True, padx=6, pady=(4, 4))
+
+        for col, heading, width in [
+            ("id", "ID", 40), ("fecha", "Fecha", 90), ("codigo", "Código", 80),
+            ("nombre", "Nombre", 200), ("lote", "Lote", 100), ("total", "Total", 80),
+            ("unidad", "Unidad", 70), ("estado", "Estado", 90),
+        ]:
+            self.history_tree.heading(col, text=heading)
+            self.history_tree.column(col, width=width, anchor="w")
+
+        self.history_tree.tag_configure("anulado", foreground="#999999")
+
+        hist_btns = tk.Frame(hist_frame, bg="white")
+        hist_btns.pack(fill="x", padx=6, pady=(0, 6))
+
+        if self.rol == "admin":
+            tk.Button(
+                hist_btns, text="Editar seleccionado", command=self._edit_selected,
+                bg="#1F4F8A", fg="white", relief="flat", padx=16, pady=5,
+            ).pack(side="left", padx=(0, 8))
+            tk.Button(
+                hist_btns, text="Anular seleccionado", command=self._annul_selected,
+                bg=COLORS["error"], fg="white", relief="flat", padx=16, pady=5,
+            ).pack(side="left")
+
+        tk.Button(
+            hist_btns, text="Actualizar", command=self._load_history,
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=16, pady=5,
+        ).pack(side="right")
+
+        self._load_history()
+
+    # ── helpers de UI ──────────────────────────────────────────
+
+    def _add_date_entry(
+        self, parent: tk.Widget, label: str, variable: tk.StringVar,
+        row: int, col: int, col_span: int = 1,
+    ) -> DateEntry:
+        frame = tk.Frame(parent, bg="white")
+        frame.grid(row=row, column=col, columnspan=col_span, padx=8, pady=8, sticky="ew")
+        tk.Label(frame, text=label, bg="white").pack(anchor="w")
+        de = DateEntry(
+            frame, textvariable=variable, date_pattern="yyyy-mm-dd",
+            width=14, background=COLORS["primary"], foreground="white",
+            headersbackground=COLORS["primary"], headersforeground="white",
+        )
+        de.pack(fill="x", pady=(4, 0))
+        if not variable.get().strip():
+            de.delete(0, tk.END)
+        parent.columnconfigure(col, weight=1)
+        return de
+
     def _add_entry(
-        self,
-        parent: tk.Widget,
-        label: str,
-        variable: tk.StringVar,
-        row: int,
-        col: int,
-        readonly: bool = False,
-        col_span: int = 1,
+        self, parent: tk.Widget, label: str, variable: tk.StringVar,
+        row: int, col: int, readonly: bool = False, col_span: int = 1,
     ) -> tk.Entry:
         frame = tk.Frame(parent, bg="white")
         frame.grid(row=row, column=col, columnspan=col_span, padx=8, pady=8, sticky="ew")
@@ -260,14 +294,8 @@ class EntryFormWindow:
         return entry
 
     def _add_combo(
-        self,
-        parent: tk.Widget,
-        label: str,
-        variable: tk.StringVar,
-        options: list[str],
-        row: int,
-        col: int,
-        col_span: int = 1,
+        self, parent: tk.Widget, label: str, variable: tk.StringVar,
+        options: list[str], row: int, col: int, col_span: int = 1,
     ) -> ttk.Combobox:
         frame = tk.Frame(parent, bg="white")
         frame.grid(row=row, column=col, columnspan=col_span, padx=8, pady=8, sticky="ew")
@@ -277,16 +305,20 @@ class EntryFormWindow:
         parent.columnconfigure(col, weight=1)
         return combo
 
+    # ── bindings ───────────────────────────────────────────────
+
     def _bind_events(self) -> None:
         if self.codigo_combo is not None:
             self.codigo_combo.bind("<<ComboboxSelected>>", self._on_codigo_selected)
-        self.cantidad_var.trace_add("write", lambda *_args: self._recalculate_totals())
-        self.costo_unitario_var.trace_add("write", lambda *_args: self._recalculate_totals())
-        self.fecha_venc_var.trace_add("write", lambda *_args: self._recalculate_doc_vigencia())
+        self.cantidad_var.trace_add("write", lambda *_: self._recalculate_costo_total())
+        self.costo_unitario_var.trace_add("write", lambda *_: self._recalculate_costo_total())
+        self.fecha_doc_var.trace_add("write", lambda *_: self._recalculate_vigencia())
+
+    # ── lógica de sustancias ───────────────────────────────────
 
     def _sustancia_codes(self) -> list[str]:
         codes = [str(item.get("codigo", "")).strip() for item in self.catalogs["sustancias"]]
-        return sorted([code for code in codes if code])
+        return sorted([c for c in codes if c])
 
     def _find_sustancia_by_code(self, code: str) -> dict | None:
         for item in self.catalogs["sustancias"]:
@@ -301,6 +333,7 @@ class EntryFormWindow:
             return
 
         self.nombre_var.set(str(selected.get("nombre", "")))
+        self.codigo_contable_var.set(str(selected.get("codigo_sistema", "")))
         if not self.concentracion_var.get().strip():
             self.concentracion_var.set(str(selected.get("concentracion", "")))
         if not self.densidad_var.get().strip():
@@ -308,13 +341,13 @@ class EntryFormWindow:
         if not self.unidad_var.get().strip():
             self.unidad_var.set(str(selected.get("unidad", "")))
 
+    # ── parseo ─────────────────────────────────────────────────
+
     def _parse_date(self, value: str) -> date | None:
         raw = (value or "").strip()
         if not raw:
             return None
-
-        formats = ["%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y"]
-        for fmt in formats:
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y"):
             try:
                 return datetime.strptime(raw, fmt).date()
             except ValueError:
@@ -330,34 +363,202 @@ class EntryFormWindow:
         except ValueError:
             return None
 
-    def _recalculate_doc_vigencia(self) -> None:
-        exp = self._parse_date(self.fecha_venc_var.get())
-        if exp is None:
+    # ── recálculos ─────────────────────────────────────────────
+
+    def _recalculate_vigencia(self) -> None:
+        """Vigencia Documento = Fecha Documento + 5 años (almacenada como fecha)."""
+        doc_date = self._parse_date(self.fecha_doc_var.get())
+        if doc_date is None:
             self.vigencia_doc_var.set("")
             return
-        self.vigencia_doc_var.set(str((exp - date.today()).days))
+        try:
+            vigencia = doc_date.replace(year=doc_date.year + 5)
+        except ValueError:
+            # Handle Feb 29 edge case
+            vigencia = doc_date.replace(year=doc_date.year + 5, day=28)
+        self.vigencia_doc_var.set(vigencia.strftime("%Y-%m-%d"))
 
-    def _recalculate_totals(self) -> None:
+    def _recalculate_costo_total(self) -> None:
+        """Costo Total = Cantidad × Costo Unitario (igual que Excel)."""
         qty = self._to_float(self.cantidad_var.get())
         cost = self._to_float(self.costo_unitario_var.get())
 
-        if qty is None:
-            self.total_var.set("-")
+        if qty is None or cost is None:
             self.costo_total_var.set("-")
             return
 
-        self.total_var.set(str(qty))
+        self.costo_total_var.set(str(round(qty * cost, 2)))
 
-        if cost is None:
-            self.costo_total_var.set("-")
+    # ── acciones ───────────────────────────────────────────────
+
+    def _load_history(self) -> None:
+        if self.history_tree is None:
+            return
+        self.history_tree.delete(*self.history_tree.get_children())
+        records = DataHandler.get_all(ENTRADAS_FILE, "entradas")
+        for rec in reversed(records):
+            anulado = rec.get("anulado", False)
+            estado = "ANULADO" if anulado else "Activo"
+            row = (
+                rec.get("id", ""),
+                rec.get("fecha", ""),
+                rec.get("codigo", ""),
+                rec.get("nombre", ""),
+                rec.get("lote", ""),
+                rec.get("total", ""),
+                rec.get("unidad", ""),
+                estado,
+            )
+            tag = "anulado" if anulado else ""
+            self.history_tree.insert("", tk.END, values=row, tags=(tag,))
+
+    def _edit_selected(self) -> None:
+        if self.history_tree is None:
+            return
+        sel = self.history_tree.selection()
+        if not sel:
+            messagebox.showwarning("Aviso", "Selecciona un registro para editar")
+            return
+        values = self.history_tree.item(sel[0], "values")
+        rec_id = int(values[0])
+
+        records = DataHandler.get_all(ENTRADAS_FILE, "entradas")
+        record = next((r for r in records if r.get("id") == rec_id), None)
+        if not record:
+            messagebox.showerror("Error", "Registro no encontrado")
+            return
+        if record.get("anulado", False):
+            messagebox.showwarning("Aviso", "No se puede editar un registro anulado")
             return
 
-        self.costo_total_var.set(str(round(qty * cost, 6)))
+        # Cargar datos en formulario
+        self.editing_id = rec_id
+        self.tipo_entrada_var.set(record.get("tipo_entrada", ""))
+        self.fecha_entrada_var.set(record.get("fecha", ""))
+        self.codigo_var.set(record.get("codigo", ""))
+        self.nombre_var.set(record.get("nombre", ""))
+        self.codigo_contable_var.set(record.get("codigo_contable", ""))
+        self.lote_var.set(record.get("lote", ""))
+        self.cantidad_var.set(str(record.get("cantidad", "")))
+        self.presentacion_var.set(record.get("presentacion", ""))
+        self.total_var.set(str(record.get("total", "")))
+        self.unidad_var.set(record.get("unidad", ""))
+        self.concentracion_var.set(record.get("concentracion", ""))
+        self.densidad_var.set(record.get("densidad", ""))
+        self.proveedor_var.set(record.get("proveedor", ""))
+        self.costo_unitario_var.set(record.get("costo_unitario", ""))
+        self.costo_total_var.set(record.get("costo_total", ""))
+        self.certificado_var.set(record.get("certificado", False))
+        self.msds_var.set(record.get("msds", False))
+        self.fecha_venc_var.set(record.get("fecha_vencimiento", ""))
+        self.fecha_doc_var.set(record.get("fecha_documento", ""))
+        self.vigencia_doc_var.set(record.get("vigencia_documento", ""))
+        self.ubicacion_var.set(record.get("ubicacion", ""))
+        self.condicion_var.set(record.get("condicion_almacenamiento", ""))
+        if self.observaciones_text is not None:
+            self.observaciones_text.delete("1.0", tk.END)
+            self.observaciones_text.insert("1.0", record.get("observaciones", ""))
+
+        if self.save_btn is not None:
+            self.save_btn.config(text="Actualizar")
+
+    def _annul_selected(self) -> None:
+        if self.history_tree is None:
+            return
+        sel = self.history_tree.selection()
+        if not sel:
+            messagebox.showwarning("Aviso", "Selecciona un registro para anular")
+            return
+        values = self.history_tree.item(sel[0], "values")
+        rec_id = int(values[0])
+
+        records = DataHandler.get_all(ENTRADAS_FILE, "entradas")
+        record = next((r for r in records if r.get("id") == rec_id), None)
+        if not record:
+            messagebox.showerror("Error", "Registro no encontrado")
+            return
+        if record.get("anulado", False):
+            messagebox.showwarning("Aviso", "Este registro ya está anulado")
+            return
+
+        # Verificar que anular no deje stock negativo
+        codigo = str(record.get("codigo", "")).strip()
+        lote = str(record.get("lote", "")).strip()
+        total_rec = float(record.get("total", 0))
+
+        salidas = DataHandler.get_all(SALIDAS_FILE, "salidas")
+        entradas = DataHandler.get_all(ENTRADAS_FILE, "entradas")
+
+        total_entrada = sum(
+            float(r.get("total", 0))
+            for r in entradas
+            if str(r.get("codigo", "")).strip() == codigo
+            and str(r.get("lote", "")).strip() == lote
+            and not r.get("anulado", False)
+        )
+        total_salida = sum(
+            float(r.get("cantidad", 0))
+            for r in salidas
+            if str(r.get("codigo", "")).strip() == codigo
+            and str(r.get("lote", "")).strip() == lote
+            and not r.get("anulado", False)
+        )
+        stock_after = (total_entrada - total_rec) - total_salida
+        if stock_after < 0:
+            messagebox.showerror(
+                "Stock",
+                f"No se puede anular: el stock quedaría negativo ({stock_after:.2f}).\n"
+                "Primero anule las salidas correspondientes.",
+            )
+            return
+
+        # Pedir motivo obligatorio
+        motivo_win = tk.Toplevel(self.window)
+        motivo_win.title("Motivo de anulación")
+        motivo_win.geometry("420x180")
+        motivo_win.configure(bg="white")
+        motivo_win.transient(self.window)
+        motivo_win.grab_set()
+
+        tk.Label(motivo_win, text="Ingrese el motivo de la anulación:", bg="white",
+                 font=("Segoe UI", 11)).pack(pady=(16, 6), padx=16, anchor="w")
+        motivo_text = tk.Text(motivo_win, height=3, font=("Segoe UI", 10))
+        motivo_text.pack(fill="x", padx=16)
+        motivo_text.focus_set()
+
+        def confirmar_anulacion():
+            motivo = motivo_text.get("1.0", tk.END).strip()
+            if not motivo:
+                messagebox.showerror("Validación", "El motivo es obligatorio", parent=motivo_win)
+                return
+            DataHandler.update_record(ENTRADAS_FILE, "entradas", rec_id, {
+                "anulado": True, "motivo_anulacion": motivo,
+            })
+            registrar_bitacora(
+                usuario=self.usuario,
+                tipo_operacion="Anulación",
+                hoja="Entrada",
+                id_registro=str(rec_id),
+                campo="anulacion_entrada",
+                valor_anterior=f"{codigo} | Lote: {lote} | Total: {total_rec}",
+                valor_nuevo=f"ANULADO | Motivo: {motivo}",
+            )
+            motivo_win.destroy()
+            messagebox.showinfo("Éxito", "Entrada anulada correctamente")
+            self._load_history()
+
+        tk.Button(motivo_win, text="Confirmar anulación", command=confirmar_anulacion,
+                  bg=COLORS["error"], fg="white", relief="flat", padx=16, pady=6,
+                  ).pack(pady=(10, 0))
 
     def show_label_preview(self) -> None:
-        messagebox.showinfo("Etiquetas", "Modulo de etiquetas en construccion")
+        from ui.etiquetas import EtiquetasWindow
+        EtiquetasWindow(self.window)
 
     def clear(self) -> None:
+        self.editing_id = None
+        if self.save_btn is not None:
+            self.save_btn.config(text="Guardar")
         self.tipo_entrada_var.set("")
         self.fecha_entrada_var.set(date.today().strftime("%Y-%m-%d"))
         self.codigo_var.set("")
@@ -367,11 +568,12 @@ class EntryFormWindow:
         self.costo_total_var.set("0")
         self.cantidad_var.set("")
         self.presentacion_var.set("")
-        self.total_var.set("0")
+        self.total_var.set("")
         self.unidad_var.set("")
         self.concentracion_var.set("")
         self.densidad_var.set("")
         self.proveedor_var.set("")
+        self.codigo_contable_var.set("")
         self.certificado_var.set(False)
         self.msds_var.set(False)
         self.fecha_venc_var.set("")
@@ -389,8 +591,8 @@ class EntryFormWindow:
             "Codigo": self.codigo_var.get().strip(),
             "Nombre del Producto": self.nombre_var.get().strip(),
             "Cantidad": self.cantidad_var.get().strip(),
+            "Total": self.total_var.get().strip(),
             "Unidad": self.unidad_var.get().strip(),
-            "Proveedor": self.proveedor_var.get().strip(),
         }
         missing = [k for k, v in required.items() if not v]
         if missing:
@@ -407,6 +609,11 @@ class EntryFormWindow:
             messagebox.showerror("Validacion", "Cantidad debe ser numerica y mayor a 0")
             return
 
+        total = self._to_float(self.total_var.get())
+        if total is None or total <= 0:
+            messagebox.showerror("Validacion", "Total (contenido neto) debe ser numerico y mayor a 0")
+            return
+
         observaciones = ""
         if self.observaciones_text is not None:
             observaciones = self.observaciones_text.get("1.0", tk.END).strip()
@@ -416,30 +623,81 @@ class EntryFormWindow:
             "fecha": self.fecha_entrada_var.get().strip(),
             "codigo": self.codigo_var.get().strip(),
             "nombre": self.nombre_var.get().strip(),
+            "codigo_contable": self.codigo_contable_var.get().strip(),
             "lote": self.lote_var.get().strip(),
-            "costo_unitario": self.costo_unitario_var.get().strip(),
-            "costo_total": self.costo_total_var.get().strip(),
             "cantidad": cantidad,
             "presentacion": self.presentacion_var.get().strip(),
-            "total": self.total_var.get().strip(),
+            "total": total,
             "unidad": self.unidad_var.get().strip(),
+            "proveedor": self.proveedor_var.get().strip(),
             "concentracion": self.concentracion_var.get().strip(),
             "densidad": self.densidad_var.get().strip(),
-            "proveedor": self.proveedor_var.get().strip(),
+            "costo_unitario": self.costo_unitario_var.get().strip(),
+            "costo_total": self.costo_total_var.get().strip(),
             "certificado": self.certificado_var.get(),
             "msds": self.msds_var.get(),
             "fecha_vencimiento": self.fecha_venc_var.get().strip(),
             "fecha_documento": self.fecha_doc_var.get().strip(),
             "vigencia_documento": self.vigencia_doc_var.get().strip(),
-            "ubicacion": self.ubicacion_var.get().strip(),
             "condicion_almacenamiento": self.condicion_var.get().strip(),
+            "ubicacion": self.ubicacion_var.get().strip(),
             "observaciones": observaciones,
-            "stock": cantidad,
         }
 
-        if not DataHandler.add_record(INVENTARIO_FILE, "inventario", record):
+        if self.editing_id is not None:
+            # ── Modo edición ──
+            if not messagebox.askyesno("Confirmar", "¿Desea actualizar esta entrada?"):
+                return
+
+            old_records = DataHandler.get_all(ENTRADAS_FILE, "entradas")
+            old_rec = next((r for r in old_records if r.get("id") == self.editing_id), {})
+
+            # Detectar campos cambiados para bitácora
+            changes: list[tuple[str, str, str]] = []
+            for field, new_val in record.items():
+                old_val = old_rec.get(field, "")
+                if str(new_val) != str(old_val):
+                    changes.append((field, str(old_val), str(new_val)))
+
+            if not DataHandler.update_record(ENTRADAS_FILE, "entradas", self.editing_id, record):
+                messagebox.showerror("Error", "No se pudo actualizar la entrada")
+                return
+
+            for campo, anterior, nuevo in changes:
+                registrar_bitacora(
+                    usuario=self.usuario,
+                    tipo_operacion="Edición",
+                    hoja="Entrada",
+                    id_registro=str(self.editing_id),
+                    campo=campo,
+                    valor_anterior=anterior,
+                    valor_nuevo=nuevo,
+                )
+
+            messagebox.showinfo("Éxito", "Entrada actualizada correctamente")
+            self.clear()
+            self._load_history()
+            return
+
+        # ── Modo creación ──
+        if not messagebox.askyesno("Confirmar", "¿Desea guardar esta entrada?"):
+            return
+
+        if not DataHandler.add_record(ENTRADAS_FILE, "entradas", record):
             messagebox.showerror("Error", "No se pudo guardar la entrada")
             return
 
-        messagebox.showinfo("Exito", "Entrada registrada en inventario")
+        tipo_ent = self.tipo_entrada_var.get().strip() or "Entrada"
+        registrar_bitacora(
+            usuario=self.usuario,
+            tipo_operacion="Entrada",
+            hoja=tipo_ent,
+            id_registro=str(record.get("id", "")),
+            campo="entrada_completa",
+            valor_anterior="",
+            valor_nuevo=f"{record['codigo']} | Lote: {record.get('lote', '')} | Total: {record['total']}",
+        )
+
+        messagebox.showinfo("Exito", "Entrada registrada correctamente")
         self.clear()
+        self._load_history()

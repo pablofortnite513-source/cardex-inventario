@@ -1,0 +1,14 @@
+{
+  "condiciones_almacenamiento": [
+    {"id": 1, "nombre": "(+15°C  a +25°C y +/- 60HR)"},
+    {"id": 2, "nombre": "(-20°C)"},
+    {"id": 3, "nombre": "(Máx. 25°C y +/- 60HR)"},
+    {"id": 4, "nombre": "10°C -30°C y +/- 60HR"},
+    {"id": 5, "nombre": "Almacenamiento entre 15°C y 25°C"},
+    {"id": 6, "nombre": "Almacenar en un lugar fresco, seco y bien ventilado (10°C-30°C)"},
+    {"id": 7, "nombre": "Almacenar en un lugar fresco, seco y ventilado (entre 10°C Y 30°C +/- 60HR)"},
+    {"id": 8, "nombre": "Almacenar en un lugar seco y bien ventilado. (10° y 30°C)"},
+    {"id": 9, "nombre": "Bien cerrado, seco y ventilado (Temperatura de +2°C a +30°C y +/- 60HR)"},
+    {"id": 10, "nombre": "Bien cerrado y seco (Entre +15°C a +25°C). Sensible a la luz"}
+  ]
+}

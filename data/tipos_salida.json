@@ -1,0 +1,12 @@
+{
+  "tipos_salida": [
+    {"id": 1, "nombre": "Ajuste"},
+    {"id": 2, "nombre": "Análisis"},
+    {"id": 3, "nombre": "Cliente"},
+    {"id": 4, "nombre": "Compra"},
+    {"id": 5, "nombre": "Devolución"},
+    {"id": 6, "nombre": "Préstamo"},
+    {"id": 7, "nombre": "Vencimiento"},
+    {"id": 8, "nombre": "Traslado"}
+  ]
+}

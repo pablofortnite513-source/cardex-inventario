@@ -1,9 +1,17 @@
 import importlib
 import tkinter as tk
-from pathlib import Path
 
-from config.config import ALMACENES_FILE, PROVEEDORES_FILE, TIPOS_ENTRADA_FILE, UBICACIONES_FILE, UNIDADES_FILE
-from config.config import COLORS
+from config.config import (
+    ALMACENES_FILE,
+    CONDICIONES_FILE,
+    PROVEEDORES_FILE,
+    TIPOS_ENTRADA_FILE,
+    TIPOS_SALIDA_FILE,
+    UBICACIONES_FILE,
+    UNIDADES_FILE,
+)
+from config.config import COLORS, IMAGES_PATH
+from ui.bitacora import BitacoraWindow
 from ui.entradas import EntryFormWindow
 from ui.maestras import MasterCatalogWindow, SubstanceMasterWindow
 from ui.salidas import SalidasWindow
@@ -130,29 +138,31 @@ class MainMenuWindow:
         self._create_panel_buttons(
             moves_col,
             [
-                ("Entradas", self.open_entradas),
-                ("Salidas", self.open_salidas),
-                ("Vigencia", self.open_vigencias),
-                ("Stock", self.open_stock),
-                ("Usuarios", self.open_usuarios),
-                ("Reportes", self.not_implemented),
+                ("Entradas", self.open_entradas, "entradas"),
+                ("Salidas", self.open_salidas, "salidas"),
+                ("Vigencia", self.open_vigencias, "vigencias"),
+                ("Stock", self.open_stock, "stock"),
+                ("Usuarios", self.open_usuarios, "inventario"),
+                ("Bitacora", self.open_bitacora, "auditoria"),
             ],
         )
         self._create_panel_buttons(
             masters_col,
             [
-                ("Sustancias", self.open_sustancias),
-                ("T. Entrada", self.open_tipo_entrada),
-                ("Proveedor", self.open_proveedor),
-                ("C. Almace", self.open_almacen),
-                ("Unidad", self.open_unidad),
-                ("Ubicacion", self.open_ubicacion),
+                ("Sustancias", self.open_sustancias, "inventario"),
+                ("T. Entrada", self.open_tipo_entrada, "inventario"),
+                ("T. Salida", self.open_tipo_salida, "inventario"),
+                ("Proveedor", self.open_proveedor, "inventario"),
+                ("Unidad", self.open_unidad, "inventario"),
+                ("Ubicacion", self.open_ubicacion, "inventario"),
+                ("Cond. Almac.", self.open_condicion_almac, "inventario"),
+                ("C. Almace", self.open_almacen, "inventario"),
             ],
         )
 
-        body.columnconfigure(0, weight=1.4)
-        body.columnconfigure(1, weight=1.7)
-        body.columnconfigure(2, weight=1.7)
+        body.columnconfigure(0, weight=14)
+        body.columnconfigure(1, weight=17)
+        body.columnconfigure(2, weight=17)
         body.rowconfigure(0, weight=1)
 
     def _set_balanced_geometry(self) -> None:
@@ -169,7 +179,7 @@ class MainMenuWindow:
         self.root.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
 
     def _render_main_image(self, parent: tk.Frame) -> None:
-        image_path = Path(__file__).resolve().parents[1] / "Imagenes" / "imagenppal.jpg"
+        image_path = IMAGES_PATH / "imagenppal.jpg"
 
         if image_path.exists():
             try:
@@ -210,19 +220,21 @@ class MainMenuWindow:
             "Vigencia": "imgVigencia.png",
             "Stock": "imgStock.png",
             "Usuarios": "imgUsuario.png",
-            "Reportes": "imgReporte.png",
+            "Bitacora": "imgReporte.png",
             "Sustancias": "imgSustancia.png",
             "T. Entrada": "imgTentrada.png",
+            "T. Salida": "imgTentrada.png",
             "Proveedor": "imgProveedor.png",
             "C. Almace": "imgCalmacen.png",
             "Unidad": "imgUnidad.png",
             "Ubicacion": "imgUbicacion.png",
+            "Cond. Almac.": "imgCalmacen.png",
         }
         return mapping.get(label)
 
-    def _load_button_icon(self, filename: str) -> None:
+    def _load_button_icon(self, filename: str) -> object | None:
         """Carga un icono desde la carpeta Imagenes."""
-        image_path = Path(__file__).resolve().parents[1] / "Imagenes" / filename
+        image_path = IMAGES_PATH / filename
         if not image_path.exists():
             return None
 
@@ -235,13 +247,18 @@ class MainMenuWindow:
         except Exception:
             return None
 
-    def _create_panel_buttons(self, parent: tk.Widget, buttons: list[tuple[str, object]]) -> None:
+    def _create_panel_buttons(self, parent: tk.Widget, buttons: list[tuple[str, object, str]]) -> None:
         grid = tk.Frame(parent, bg="white")
         grid.pack(expand=True, fill="both", padx=8, pady=8)
 
-        for idx, (label, callback) in enumerate(buttons):
+        perms = self.user.get("permisos", {})
+        is_admin = str(self.user.get("rol", "")).lower() == "admin"
+
+        for idx, (label, callback, perm_key) in enumerate(buttons):
             row = idx // 2
             col = idx % 2
+            has_access = is_admin or perms.get(perm_key, False)
+
             button_shell = tk.Frame(grid, bg="white", bd=1, relief="solid", padx=6, pady=10)
             button_shell.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
@@ -262,9 +279,9 @@ class MainMenuWindow:
             btn = tk.Button(
                 button_shell,
                 text=label,
-                command=callback,
-                bg="white",
-                fg=COLORS["text_dark"],
+                command=callback if has_access else self._no_access,
+                bg="white" if has_access else "#E0E0E0",
+                fg=COLORS["text_dark"] if has_access else "#999999",
                 relief="flat",
                 bd=0,
                 activebackground="white",
@@ -272,19 +289,21 @@ class MainMenuWindow:
                 font=("Segoe UI", 11),
                 anchor="w",
                 padx=3,
+                state="normal" if has_access else "disabled",
             )
             btn.pack(side="left", fill="both", expand=True)
 
-        for row in range(3):
+        max_rows = (len(buttons) + 1) // 2
+        for row in range(max_rows):
             grid.rowconfigure(row, weight=1)
         for col in range(2):
             grid.columnconfigure(col, weight=1)
 
     def open_entradas(self) -> None:
-        EntryFormWindow(self.root)
+        EntryFormWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
 
     def open_salidas(self) -> None:
-        SalidasWindow(self.root)
+        SalidasWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
 
     def open_vigencias(self) -> None:
         VigenciasWindow(self.root)
@@ -295,11 +314,17 @@ class MainMenuWindow:
     def open_usuarios(self) -> None:
         CreateUserWindow(self.root)
 
+    def open_bitacora(self) -> None:
+        BitacoraWindow(self.root)
+
     def open_sustancias(self) -> None:
         SubstanceMasterWindow(self.root)
 
     def open_tipo_entrada(self) -> None:
         MasterCatalogWindow(self.root, "T. Entrada", TIPOS_ENTRADA_FILE, "tipos_entrada", "nombre")
+
+    def open_tipo_salida(self) -> None:
+        MasterCatalogWindow(self.root, "T. Salida", TIPOS_SALIDA_FILE, "tipos_salida", "nombre")
 
     def open_proveedor(self) -> None:
         MasterCatalogWindow(self.root, "Proveedor", PROVEEDORES_FILE, "proveedores", "nombre")
@@ -312,6 +337,13 @@ class MainMenuWindow:
 
     def open_ubicacion(self) -> None:
         MasterCatalogWindow(self.root, "Ubicacion", UBICACIONES_FILE, "ubicaciones", "nombre")
+
+    def open_condicion_almac(self) -> None:
+        MasterCatalogWindow(self.root, "Cond. Almac.", CONDICIONES_FILE, "condiciones_almacenamiento", "nombre")
+
+    def _no_access(self) -> None:
+        import tkinter.messagebox as mb
+        mb.showwarning("Acceso denegado", "No tiene permisos para acceder a este módulo.")
 
     def not_implemented(self) -> None:
         top = tk.Toplevel(self.root)

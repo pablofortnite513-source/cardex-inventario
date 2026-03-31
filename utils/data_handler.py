@@ -51,3 +51,14 @@ class DataHandler:
         """Obtiene todos los registros de una clave"""
         data = DataHandler.load_json(file_path)
         return data.get(key, [])
+
+    @staticmethod
+    def update_record(file_path: str, key: str, record_id: int, updates: Dict[str, Any]) -> bool:
+        """Actualiza un registro existente por su ID."""
+        data = DataHandler.load_json(file_path)
+        records = data.get(key, [])
+        for rec in records:
+            if rec.get("id") == record_id:
+                rec.update(updates)
+                return DataHandler.save_json(file_path, data)
+        return False

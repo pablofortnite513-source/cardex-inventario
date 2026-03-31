@@ -1,3 +1,122 @@
 {
-  "salidas": []
+  "salidas": [
+    {
+      "id": 1,
+      "fecha_salida": "2026-01-25",
+      "tipo_salida": "Análisis",
+      "codigo": "SUB001",
+      "nombre": "Ácido Clorhídrico",
+      "lote": "LOT-2026-001",
+      "cantidad": 500,
+      "unidad": "Litro",
+      "densidad": "1.18",
+      "observaciones": "Uso en análisis de laboratorio"
+    },
+    {
+      "id": 2,
+      "fecha_salida": "2026-02-10",
+      "tipo_salida": "Análisis",
+      "codigo": "SUB002",
+      "nombre": "Hidróxido de Sodio",
+      "lote": "LOT-2026-002",
+      "cantidad": 200,
+      "unidad": "Kilogramo",
+      "densidad": "1.52",
+      "observaciones": "Preparación de soluciones"
+    },
+    {
+      "id": 3,
+      "fecha_salida": "2026-02-18",
+      "tipo_salida": "Análisis",
+      "codigo": "SUB003",
+      "nombre": "Etanol Absoluto",
+      "lote": "LOT-2026-003",
+      "cantidad": 1200,
+      "unidad": "Litro",
+      "densidad": "0.789",
+      "observaciones": "Limpieza de equipos y análisis"
+    },
+    {
+      "id": 4,
+      "fecha_salida": "2026-03-05",
+      "tipo_salida": "Análisis",
+      "codigo": "SUB004",
+      "nombre": "Ácido Sulfúrico",
+      "lote": "LOT-2026-004",
+      "cantidad": 800,
+      "unidad": "Litro",
+      "densidad": "1.84",
+      "observaciones": "Titulaciones ácido-base"
+    },
+    {
+      "id": 5,
+      "fecha_salida": "2026-03-12",
+      "tipo_salida": "Análisis",
+      "codigo": "SUB001",
+      "nombre": "Ácido Clorhídrico",
+      "lote": "LOT-2026-001",
+      "cantidad": 300,
+      "unidad": "Litro",
+      "densidad": "1.18",
+      "observaciones": "Análisis de muestras"
+    },
+    {
+      "id": 6,
+      "fecha_salida": "2026-03-20",
+      "tipo_salida": "Préstamo",
+      "codigo": "SUB005",
+      "nombre": "Cloruro de Sodio",
+      "lote": "LOT-2026-005",
+      "cantidad": 350,
+      "unidad": "Kilogramo",
+      "densidad": "2.16",
+      "observaciones": "Préstamo a laboratorio externo"
+    },
+    {
+      "id": 7,
+      "fecha_salida": "2026-03-22",
+      "tipo_salida": "Análisis",
+      "codigo": "SUB003",
+      "nombre": "Etanol Absoluto",
+      "lote": "LOT-2026-003",
+      "cantidad": 800,
+      "unidad": "Litro",
+      "densidad": "0.789",
+      "observaciones": "Uso en síntesis"
+    },
+    {
+      "fecha_salida": "2026-03-30",
+      "tipo_salida": "Compra",
+      "codigo": "SUB002",
+      "nombre": "Hidróxido de Sodio",
+      "lote": "LOT-2026-002",
+      "cantidad": 12.0,
+      "unidad": "Kilogramo",
+      "densidad": "1.52",
+      "ubicacion_origen": "Estante B",
+      "peso_inicial": "13",
+      "peso_final": "13",
+      "liquido": false,
+      "en_uso": true,
+      "observaciones": "prueba para ver auditoria",
+      "id": 8
+    },
+    {
+      "fecha_salida": "2026-03-30",
+      "tipo_salida": "Análisis",
+      "codigo": "SUB004",
+      "nombre": "Ácido Sulfúrico",
+      "lote": "LOT-2026-004",
+      "cantidad": 16.0,
+      "unidad": "Litro",
+      "densidad": "1.84",
+      "ubicacion_origen": "Estante B",
+      "peso_inicial": "",
+      "peso_final": "",
+      "liquido": false,
+      "en_uso": true,
+      "observaciones": "Prueba 2 de auditoria",
+      "id": 9
+    }
+  ]
 }

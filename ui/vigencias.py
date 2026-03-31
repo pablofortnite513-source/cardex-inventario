@@ -2,7 +2,7 @@ import tkinter as tk
 from datetime import date, datetime
 from tkinter import ttk
 
-from config.config import COLORS, INVENTARIO_FILE
+from config.config import COLORS, ENTRADAS_FILE, SALIDAS_FILE
 from utils.data_handler import DataHandler
 
 
@@ -17,6 +17,7 @@ class VigenciasWindow:
 
         self.search_var = tk.StringVar()
         self.tree: ttk.Treeview | None = None
+        self.estado_label: tk.Label | None = None
 
         self.detail_vars = {
             "codigo": tk.StringVar(),
@@ -125,7 +126,7 @@ class VigenciasWindow:
             ("Estado", "estado"),
             ("Cantidad", "cantidad"),
             ("Unidad", "unidad"),
-            ("Fabricante", "fabricante"),
+            ("Proveedor", "fabricante"),
         ]
 
         for idx, (label, key) in enumerate(fields):
@@ -134,7 +135,14 @@ class VigenciasWindow:
             group = tk.Frame(details, bg="white")
             group.grid(row=row * 2, column=col, sticky="ew", padx=8, pady=(3, 2))
             tk.Label(group, text=label, bg="white", fg=COLORS["text_dark"], anchor="w").pack(anchor="w")
-            tk.Entry(group, textvariable=self.detail_vars[key], state="readonly").pack(fill="x")
+            if key == "estado":
+                self.estado_label = tk.Label(
+                    group, text="", font=("Segoe UI", 11, "bold"),
+                    bg="white", fg="#333", anchor="center", pady=2, relief="groove",
+                )
+                self.estado_label.pack(fill="x")
+            else:
+                tk.Entry(group, textvariable=self.detail_vars[key], state="readonly").pack(fill="x")
 
         for col in range(3):
             details.columnconfigure(col, weight=1)
@@ -210,7 +218,7 @@ class VigenciasWindow:
                 return parsed
         return None
 
-    def _build_row(self, record: dict) -> tuple:
+    def _build_row(self, record: dict, stock: float) -> tuple:
         exp = self._extract_expiration_date(record)
         days = (exp - date.today()).days if exp else None
         estado = self._status_for_days(days)
@@ -220,24 +228,60 @@ class VigenciasWindow:
             record.get("nombre", ""),
             record.get("lote", ""),
             exp.strftime("%Y-%m-%d") if exp else "",
-            record.get("cantidad", 0),
+            stock,
             record.get("unidad", ""),
-            record.get("proveedor", ""),
+            record.get("proveedor", record.get("fabricante", "")),
             days if days is not None else "",
             estado,
         )
+
+    def _safe_float(self, value) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _compute_stock_map(self) -> dict[tuple[str, str], float]:
+        """Calcula stock por (codigo, lote) = Sum(entradas.total) - Sum(salidas.cantidad)."""
+        entradas = DataHandler.get_all(ENTRADAS_FILE, "entradas")
+        salidas = DataHandler.get_all(SALIDAS_FILE, "salidas")
+
+        smap: dict[tuple[str, str], float] = {}
+        for r in entradas:
+            if r.get("anulado", False):
+                continue
+            key = (str(r.get("codigo", "")).strip(), str(r.get("lote", "")).strip())
+            smap[key] = smap.get(key, 0.0) + self._safe_float(r.get("total", 0))
+        for r in salidas:
+            if r.get("anulado", False):
+                continue
+            key = (str(r.get("codigo", "")).strip(), str(r.get("lote", "")).strip())
+            smap[key] = smap.get(key, 0.0) - self._safe_float(r.get("cantidad", 0))
+        return smap
 
     def load_table(self) -> None:
         if self.tree is None:
             return
 
         query = self.search_var.get().strip().lower()
-        records = DataHandler.get_all(INVENTARIO_FILE, "inventario")
+        entradas = DataHandler.get_all(ENTRADAS_FILE, "entradas")
+        stock_map = self._compute_stock_map()
+
+        # Agrupar entradas por (codigo, lote) para mostrar una fila por combinación
+        seen: set[tuple[str, str]] = set()
+        unique_records: list[tuple[dict, float]] = []
+        for record in entradas:
+            if record.get("anulado", False):
+                continue
+            key = (str(record.get("codigo", "")).strip(), str(record.get("lote", "")).strip())
+            if key not in seen:
+                seen.add(key)
+                unique_records.append((record, round(stock_map.get(key, 0.0), 6)))
 
         self.tree.delete(*self.tree.get_children())
 
-        for record in records:
-            row = self._build_row(record)
+        for record, stock in unique_records:
+            row = self._build_row(record, stock)
             if query and query not in str(row).lower():
                 continue
             self.tree.insert("", tk.END, values=row)
@@ -294,6 +338,18 @@ class VigenciasWindow:
         self.detail_vars["dias_restantes"].set(values[7] if len(values) > 7 else "")
         self.detail_vars["estado"].set(values[8] if len(values) > 8 else "")
 
+        # Actualizar color del label Estado
+        estado = values[8] if len(values) > 8 else ""
+        if self.estado_label is not None:
+            if estado == "VIGENTE":
+                self.estado_label.config(text=estado, bg="#4CAF50", fg="white")
+            elif estado == "POR VENCER":
+                self.estado_label.config(text=estado, bg="#FFD600", fg="#333")
+            elif estado == "VENCIDO":
+                self.estado_label.config(text=estado, bg="#F44336", fg="white")
+            else:
+                self.estado_label.config(text=estado, bg="white", fg="#333")
+
     def remove_selected(self) -> None:
         if self.tree is None:
             return
@@ -304,4 +360,6 @@ class VigenciasWindow:
         self.search_var.set("")
         for var in self.detail_vars.values():
             var.set("")
+        if self.estado_label is not None:
+            self.estado_label.config(text="", bg="white", fg="#333")
         self.load_table()

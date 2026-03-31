@@ -4,9 +4,11 @@ from tkinter import messagebox
 from config.config import (
     ALMACENES_FILE,
     COLORS,
+    CONDICIONES_FILE,
     PROVEEDORES_FILE,
     SUSTANCIAS_FILE,
     TIPOS_ENTRADA_FILE,
+    TIPOS_SALIDA_FILE,
     UBICACIONES_FILE,
     UNIDADES_FILE,
 )
@@ -45,15 +47,17 @@ class MaestrasWindow:
         options = [
             ("Sustancias", self.open_sustancias),
             ("T. Entrada", lambda: self.open_catalog("T. Entrada", TIPOS_ENTRADA_FILE, "tipos_entrada", "nombre")),
+            ("T. Salida", lambda: self.open_catalog("T. Salida", TIPOS_SALIDA_FILE, "tipos_salida", "nombre")),
             ("Proveedor", lambda: self.open_catalog("Proveedor", PROVEEDORES_FILE, "proveedores", "nombre")),
             ("C. Almace", lambda: self.open_catalog("C. Almace", ALMACENES_FILE, "almacenes", "nombre")),
             ("Unidad", lambda: self.open_catalog("Unidad", UNIDADES_FILE, "unidades", "nombre")),
             ("Ubicacion", lambda: self.open_catalog("Ubicacion", UBICACIONES_FILE, "ubicaciones", "nombre")),
+            ("Cond. Almac.", lambda: self.open_catalog("Cond. Almac.", CONDICIONES_FILE, "condiciones_almacenamiento", "nombre")),
         ]
 
         for idx, (label, action) in enumerate(options):
-            row = idx // 2
-            col = idx % 2
+            row = idx // 3
+            col = idx % 3
             tk.Button(
                 grid,
                 text=label,
@@ -69,7 +73,7 @@ class MaestrasWindow:
 
         for row in range(3):
             grid.rowconfigure(row, weight=1)
-        for col in range(2):
+        for col in range(3):
             grid.columnconfigure(col, weight=1)
 
     def open_catalog(self, title: str, file_path: str, key: str, display_field: str) -> None:
@@ -82,10 +86,12 @@ class MaestrasWindow:
         mapping = {
             "Sustancias": self.open_sustancias,
             "T. Entrada": lambda: self.open_catalog("T. Entrada", TIPOS_ENTRADA_FILE, "tipos_entrada", "nombre"),
+            "T. Salida": lambda: self.open_catalog("T. Salida", TIPOS_SALIDA_FILE, "tipos_salida", "nombre"),
             "Proveedor": lambda: self.open_catalog("Proveedor", PROVEEDORES_FILE, "proveedores", "nombre"),
             "C. Almace": lambda: self.open_catalog("C. Almace", ALMACENES_FILE, "almacenes", "nombre"),
             "Unidad": lambda: self.open_catalog("Unidad", UNIDADES_FILE, "unidades", "nombre"),
             "Ubicacion": lambda: self.open_catalog("Ubicacion", UBICACIONES_FILE, "ubicaciones", "nombre"),
+            "Cond. Almac.": lambda: self.open_catalog("Cond. Almac.", CONDICIONES_FILE, "condiciones_almacenamiento", "nombre"),
         }
         action = mapping.get(label)
         if action:
@@ -155,6 +161,7 @@ class SubstanceMasterWindow:
         self._add_field(grid, "Limite Minimo de Control", 1, 1)
         self._add_field(grid, "Codigo Sistema", 1, 2)
         self._add_field(grid, "Cantidad Minima Stock", 2, 2)
+        self._add_field(grid, "Ubicacion", 3, 0)
 
         for col in range(3):
             grid.columnconfigure(col, weight=1)
@@ -225,6 +232,7 @@ class SubstanceMasterWindow:
             "limite_minimo_control": self.inputs["Limite Minimo de Control"].get().strip(),
             "codigo_sistema": self.inputs["Codigo Sistema"].get().strip(),
             "cantidad_minima_stock": self.inputs["Cantidad Minima Stock"].get().strip(),
+            "ubicacion": self.inputs["Ubicacion"].get().strip(),
             "concentracion": "",
             "densidad": "",
             "unidad": "",
@@ -345,6 +353,10 @@ class MasterCatalogWindow:
             return
 
         selected_name = self.listbox.get(selected[0])
+
+        if not messagebox.askyesno("Confirmar", f"¿Desea eliminar '{selected_name}'?"):
+            return
+
         data = DataHandler.load_json(self.file_path)
         records = data.get(self.key, [])
 
