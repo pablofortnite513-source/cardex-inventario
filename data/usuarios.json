@@ -79,6 +79,22 @@
         "vigencias": false,
         "auditoria": false
       }
+    },
+    {
+      "nombre": "adolfo",
+      "usuario": "adolfo",
+      "contrasena": "123",
+      "rol": "Admin",
+      "permisos": {
+        "inventario": false,
+        "entradas": false,
+        "salidas": false,
+        "stock": false,
+        "consulta": false,
+        "vigencias": false,
+        "auditoria": false
+      },
+      "id": 6
     }
   ]
 }

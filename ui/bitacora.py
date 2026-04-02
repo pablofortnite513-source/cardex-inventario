@@ -3,6 +3,7 @@ from datetime import datetime
 from tkinter import ttk
 
 from config.config import BITACORA_FILE, COLORS
+from ui.styles import build_header
 from utils.data_handler import DataHandler
 
 
@@ -32,14 +33,7 @@ class BitacoraWindow:
         wrapper = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=12, pady=12)
         wrapper.pack(expand=True, fill="both", padx=14, pady=14)
 
-        tk.Label(
-            wrapper,
-            text="Bitácora de Auditoría",
-            bg=COLORS["primary"],
-            fg=COLORS["text_light"],
-            font=("Segoe UI", 16, "bold"),
-            pady=6,
-        ).pack(fill="x", pady=(0, 10))
+        build_header(wrapper, "Sistema de Gestión  -  Reportes")
 
         search_row = tk.Frame(wrapper, bg="white")
         search_row.pack(fill="x", pady=(0, 8))
@@ -72,12 +66,26 @@ class BitacoraWindow:
             pady=5,
         ).pack(side="left")
 
+        tk.Button(
+            search_row,
+            text="Borrar filtros",
+            command=self._clear_filters,
+            bg=COLORS["border"],
+            fg=COLORS["text_dark"],
+            relief="flat",
+            padx=16,
+            pady=5,
+        ).pack(side="left", padx=(8, 0))
+
         columns = (
             "fecha_hora", "usuario", "tipo_operacion",
             "hoja", "id_registro", "campo", "valor_anterior", "valor_nuevo",
         )
-        self.tree = ttk.Treeview(wrapper, columns=columns, show="headings", height=16)
-        self.tree.pack(expand=True, fill="both")
+        # ── Contenedor con scrollbars ──
+        tree_frame = tk.Frame(wrapper, bg="white")
+        tree_frame.pack(expand=True, fill="both")
+
+        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=16)
 
         headings = {
             "fecha_hora": "Fecha y Hora",
@@ -102,11 +110,18 @@ class BitacoraWindow:
 
         for col in columns:
             self.tree.heading(col, text=headings[col])
-            self.tree.column(col, width=widths[col], anchor="w")
+            self.tree.column(col, width=widths[col], minwidth=widths[col], anchor="w")
 
-        scrollbar = ttk.Scrollbar(wrapper, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y", before=self.tree)
+        v_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        h_scroll = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
+
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        v_scroll.grid(row=0, column=1, sticky="ns")
+        h_scroll.grid(row=1, column=0, sticky="ew")
+
+        tree_frame.rowconfigure(0, weight=1)
+        tree_frame.columnconfigure(0, weight=1)
 
         tk.Button(
             wrapper,
@@ -118,6 +133,13 @@ class BitacoraWindow:
             padx=24,
             pady=6,
         ).pack(pady=(10, 0))
+
+    def _clear_filters(self) -> None:
+        """Limpia todos los filtros y muestra todo."""
+        self.search_var.set("")
+        self.mes_var.set("Todos")
+        self.anio_var.set("Todos")
+        self.load_table()
 
     def _available_years(self) -> list[str]:
         records = DataHandler.get_all(BITACORA_FILE, "bitacora")

@@ -6,7 +6,8 @@
 # Dependencia externa necesaria para cargar imágenes (JPG/PNG)
 # en la interfaz Tkinter.
 
-Pillow>=10.0.0\ntkcalendar>=1.6.1
+Pillow>=10.0.0
+tkcalendar>=1.6.1
 #
 # Módulos estándar utilizados:
 #   - tkinter     (interfaz gráfica)

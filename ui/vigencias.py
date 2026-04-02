@@ -1,19 +1,23 @@
 import tkinter as tk
 from datetime import date, datetime
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
-from config.config import COLORS, ENTRADAS_FILE, SALIDAS_FILE
-from utils.data_handler import DataHandler
+from config.config import COLORS, ENTRADAS_FILE, INVENTARIO_FILE, SALIDAS_FILE, TIPOS_SALIDA_FILE
+from ui.bitacora import registrar_bitacora
+from ui.styles import build_header
+from utils.data_handler import DataHandler, sync_inventario
 
 
 class VigenciasWindow:
     """Vista de vigencias de inventario con dias restantes y estado."""
 
-    def __init__(self, parent: tk.Tk):
+    def __init__(self, parent: tk.Tk, usuario: str = "", rol: str = ""):
         self.window = tk.Toplevel(parent)
         self.window.title("Sistema de Gestion - Vigencias")
-        self.window.geometry("1260x680")
+        self.window.geometry("1260x750")
         self.window.configure(bg=COLORS["secondary"])
+        self.usuario = usuario
+        self.rol = rol.lower()
 
         self.search_var = tk.StringVar()
         self.tree: ttk.Treeview | None = None
@@ -31,6 +35,17 @@ class VigenciasWindow:
             "fabricante": tk.StringVar(),
         }
 
+        # Variables para Mover Stock
+        self.tipo_salida_var = tk.StringVar()
+        self.obs_text: tk.Text | None = None
+
+        tipos_data = DataHandler.load_json(TIPOS_SALIDA_FILE)
+        self.tipo_salida_options = [
+            x.get("nombre", "") for x in tipos_data.get("maestrasTiposSalida", []) if x.get("nombre")
+        ]
+        if not self.tipo_salida_options:
+            self.tipo_salida_options = ["Consumo", "Transferencia", "Ajuste", "Merma"]
+
         self._build_ui()
         self.load_table()
 
@@ -38,14 +53,7 @@ class VigenciasWindow:
         wrapper = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=12, pady=12)
         wrapper.pack(expand=True, fill="both", padx=14, pady=14)
 
-        tk.Label(
-            wrapper,
-            text="Sistema de Gestion - Vigencias",
-            bg=COLORS["primary"],
-            fg=COLORS["text_light"],
-            font=("Segoe UI", 18, "bold"),
-            pady=6,
-        ).pack(fill="x", pady=(0, 10))
+        build_header(wrapper, "Sistema de Gestión  -  Vigencias")
 
         search_row = tk.Frame(wrapper, bg="white")
         search_row.pack(fill="x", pady=(0, 8))
@@ -83,7 +91,7 @@ class VigenciasWindow:
         ).pack(side="left")
 
         columns = ("codigo", "nombre", "lote", "f_venc", "cantidad", "unidad", "proveedor", "dias", "estado")
-        self.tree = ttk.Treeview(wrapper, columns=columns, show="headings", height=12)
+        self.tree = ttk.Treeview(wrapper, columns=columns, show="headings", height=12, selectmode="extended")
         self.tree.pack(expand=True, fill="both", pady=(0, 10))
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
 
@@ -146,6 +154,36 @@ class VigenciasWindow:
 
         for col in range(3):
             details.columnconfigure(col, weight=1)
+
+        # ── Tipo de Salida y Observaciones ──
+        salida_frame = tk.LabelFrame(wrapper, text="Tipo de Salida y Observaciones", bg="white", fg="#1F4F8A", font=("Segoe UI", 11, "bold"))
+        salida_frame.pack(fill="x", pady=(6, 0))
+
+        salida_row = tk.Frame(salida_frame, bg="white")
+        salida_row.pack(fill="x", padx=10, pady=8)
+
+        tipo_frame = tk.Frame(salida_row, bg="white")
+        tipo_frame.pack(side="left", padx=(0, 12))
+        tk.Label(tipo_frame, text="Tipo Salida", bg="white").pack(anchor="w")
+        ttk.Combobox(
+            tipo_frame, textvariable=self.tipo_salida_var,
+            values=self.tipo_salida_options, state="readonly", width=18,
+        ).pack(pady=(4, 0))
+
+        obs_frame = tk.Frame(salida_row, bg="white")
+        obs_frame.pack(side="left", fill="x", expand=True, padx=(0, 12))
+        tk.Label(obs_frame, text="Observaciones", bg="white").pack(anchor="w")
+        self.obs_text = tk.Text(obs_frame, height=2, font=("Segoe UI", 10))
+        self.obs_text.pack(fill="x", pady=(4, 0))
+
+        btn_col = tk.Frame(salida_row, bg="white")
+        btn_col.pack(side="right", padx=(0, 0))
+
+        tk.Button(
+            btn_col, text="Mover Stock", command=self._mover_stock,
+            bg="#4CAF50", fg="white", relief="flat",
+            font=("Segoe UI", 11, "bold"), padx=18, pady=6,
+        ).pack(pady=(0, 4))
 
         button_row = tk.Frame(wrapper, bg="white")
         button_row.pack(fill="x", pady=(10, 0))
@@ -350,6 +388,88 @@ class VigenciasWindow:
             else:
                 self.estado_label.config(text=estado, bg="white", fg="#333")
 
+    def _mover_stock(self) -> None:
+        """Crea salidas para los productos seleccionados en la tabla (retiro por lote)."""
+        if self.tree is None:
+            return
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Mover Stock", "Selecciona al menos un producto de la tabla")
+            return
+
+        tipo_salida = self.tipo_salida_var.get().strip()
+        if not tipo_salida:
+            messagebox.showwarning("Mover Stock", "Selecciona un Tipo de Salida")
+            return
+
+        observaciones = ""
+        if self.obs_text is not None:
+            observaciones = self.obs_text.get("1.0", tk.END).strip()
+
+        items = []
+        for item_id in selected:
+            values = self.tree.item(item_id, "values")
+            if len(values) < 9:
+                continue
+            codigo = str(values[0]).strip()
+            nombre = str(values[1]).strip()
+            lote = str(values[2]).strip()
+            try:
+                cantidad = float(values[4])
+            except (TypeError, ValueError):
+                cantidad = 0.0
+            unidad = str(values[5]).strip()
+            if cantidad <= 0:
+                continue
+            items.append({
+                "codigo": codigo, "nombre": nombre, "lote": lote,
+                "cantidad": cantidad, "unidad": unidad,
+            })
+
+        if not items:
+            messagebox.showwarning("Mover Stock", "Los productos seleccionados no tienen stock disponible")
+            return
+
+        resumen = "\n".join(f"  {it['codigo']} - {it['nombre']} | Lote: {it['lote']} | Cant: {it['cantidad']}" for it in items)
+        if not messagebox.askyesno(
+            "Confirmar Mover Stock",
+            f"Se crearán {len(items)} salida(s) tipo '{tipo_salida}':\n\n{resumen}\n\n¿Continuar?",
+        ):
+            return
+
+        fecha_hoy = date.today().strftime("%Y-%m-%d")
+        for it in items:
+            salida = {
+                "fecha_salida": fecha_hoy,
+                "tipo_salida": tipo_salida,
+                "codigo": it["codigo"],
+                "nombre": it["nombre"],
+                "lote": it["lote"],
+                "cantidad": it["cantidad"],
+                "unidad": it["unidad"],
+                "densidad": "",
+                "ubicacion_origen": "",
+                "peso_inicial": "",
+                "peso_final": "",
+                "liquido": False,
+                "en_uso": False,
+                "observaciones": observaciones,
+            }
+            DataHandler.add_record(SALIDAS_FILE, "salidas", salida)
+            registrar_bitacora(
+                usuario=self.usuario,
+                tipo_operacion="Salida",
+                hoja=tipo_salida,
+                id_registro=str(salida.get("id", "")),
+                campo="mover_stock_vigencia",
+                valor_anterior="",
+                valor_nuevo=f"{it['codigo']} | Lote: {it['lote']} | Cant: {it['cantidad']}",
+            )
+
+        sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
+        messagebox.showinfo("Mover Stock", f"Se registraron {len(items)} salida(s) correctamente")
+        self.load_table()
+
     def remove_selected(self) -> None:
         if self.tree is None:
             return
@@ -362,4 +482,7 @@ class VigenciasWindow:
             var.set("")
         if self.estado_label is not None:
             self.estado_label.config(text="", bg="white", fg="#333")
+        self.tipo_salida_var.set("")
+        if self.obs_text is not None:
+            self.obs_text.delete("1.0", tk.END)
         self.load_table()

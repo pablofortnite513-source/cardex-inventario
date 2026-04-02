@@ -1,8 +1,47 @@
+import os
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import Image, filedialog, messagebox, ttk
 
 from config.config import COLORS, ENTRADAS_FILE, IMAGES_PATH, SUSTANCIAS_FILE
 from utils.data_handler import DataHandler
+
+
+def mm_to_px(mm: float, dpi: int = 300) -> int:
+    return int((mm / 25.4) * dpi)
+
+
+DPI = 300
+BASE_LABEL_W = 640
+BASE_LABEL_H = 405
+
+# Medidas extraídas de Excel (LE-FO006_01) con escala de impresión 75%
+# Ancho/alto base detectado en celdas A:H y filas 3:11, ajustado por escala 75%.
+EXCEL_PRINT_SCALE = 0.75
+LABEL_WIDTH_MM = 135.996 * EXCEL_PRINT_SCALE
+LABEL_HEIGHT_MM = 101.406 * EXCEL_PRINT_SCALE
+LABEL_W_PX = mm_to_px(LABEL_WIDTH_MM, DPI)
+LABEL_H_PX = mm_to_px(LABEL_HEIGHT_MM, DPI)
+
+# Hoja A4 física real en orientación horizontal (como Excel)
+A4_W = mm_to_px(297, DPI)
+A4_H = mm_to_px(210, DPI)
+
+# Posiciones fijas (mm) según pitch de Excel con escala de impresión 75%
+# Pitch horizontal: columnas A:I -> 138.377 mm * 0.75
+# Pitch vertical: 12 filas (3..14) -> 119.398 mm * 0.75
+START_X_MM = 3.0
+START_Y_MM = 27.0
+PITCH_X_MM = 138.377 * EXCEL_PRINT_SCALE
+PITCH_Y_MM = 119.398 * EXCEL_PRINT_SCALE
+
+LABEL_POSITIONS_MM = [
+    (START_X_MM, START_Y_MM),
+    (START_X_MM + PITCH_X_MM, START_Y_MM),
+    (START_X_MM, START_Y_MM + PITCH_Y_MM),
+    (START_X_MM + PITCH_X_MM, START_Y_MM + PITCH_Y_MM),
+]
+
+LABEL_POSITIONS_PX = [(mm_to_px(x, DPI), mm_to_px(y, DPI)) for x, y in LABEL_POSITIONS_MM]
 
 
 class EtiquetasWindow:
@@ -44,7 +83,7 @@ class EtiquetasWindow:
         return DataHandler.get_all(ENTRADAS_FILE, "entradas")
 
     def _get_sustancias(self) -> list[dict]:
-        return DataHandler.load_json(SUSTANCIAS_FILE).get("sustancias", [])
+        return DataHandler.load_json(SUSTANCIAS_FILE).get("maestrasSustancias", [])
 
     def _available_codes(self) -> list[str]:
         entradas = self._get_entradas()
@@ -281,10 +320,10 @@ class EtiquetasWindow:
 
         try:
             cantidad = int(self.det_cantidad_var.get().strip() or "1")
-            if cantidad < 1:
+            if cantidad < 1 or cantidad > 20:
                 raise ValueError
         except ValueError:
-            messagebox.showerror("Etiquetas", "Cantidad debe ser un número entero mayor a 0.")
+            messagebox.showerror("Etiquetas", "Cantidad debe ser un número entero entre 1 y 20.")
             return
 
         try:
@@ -318,227 +357,255 @@ class EtiquetasWindow:
         save_path = filedialog.asksaveasfilename(
             parent=self.window,
             title=f"Guardar etiqueta(s) - {cantidad} copia(s)",
-            defaultextension=".png",
+            defaultextension=".pdf",
             filetypes=[("PNG", "*.png"), ("JPEG", "*.jpg"), ("PDF", "*.pdf")],
             initialfile=f"Etiqueta_{label_data['codigo']}_{label_data['lote']}",
         )
         if not save_path:
             return
 
+        pages = self._build_a4_pages(img, cantidad, Image)
+
         if save_path.lower().endswith(".pdf"):
-            self._save_as_pdf(img, save_path, cantidad, Image)
+            self._save_as_pdf(pages, save_path)
         else:
-            if cantidad > 1:
-                # Create a tiled image with multiple labels
-                cols = min(cantidad, 2)
-                rows_needed = (cantidad + cols - 1) // cols
-                gap = 20
-                full_w = cols * img.width + (cols + 1) * gap
-                full_h = rows_needed * img.height + (rows_needed + 1) * gap
-                full = Image.new("RGB", (full_w, full_h), "white")
-                for i in range(cantidad):
-                    r = i // cols
-                    c = i % cols
-                    x = gap + c * (img.width + gap)
-                    y = gap + r * (img.height + gap)
-                    full.paste(img, (x, y))
-                full.save(save_path)
+            ext = os.path.splitext(save_path)[1].lower()
+            if len(pages) == 1:
+                if ext in (".jpg", ".jpeg"):
+                    pages[0].save(save_path, quality=98, subsampling=0, dpi=(300, 300))
+                else:
+                    pages[0].save(save_path, dpi=(300, 300))
             else:
-                img.save(save_path)
+                base, _ = os.path.splitext(save_path)
+                for idx, page_img in enumerate(pages, 1):
+                    page_path = f"{base}_p{idx}{ext}"
+                    if ext in (".jpg", ".jpeg"):
+                        page_img.save(page_path, quality=98, subsampling=0, dpi=(300, 300))
+                    else:
+                        page_img.save(page_path, dpi=(300, 300))
 
         messagebox.showinfo("Etiquetas", f"Etiqueta(s) guardada(s) en:\n{save_path}")
 
     def _generate_label_image(self, data: dict, Image, ImageDraw, ImageFont):
-        """Genera una imagen de etiqueta estilo Excel IDENTIFICACIÓN DE REACTIVO."""
-        W = 700
-        H = 560
+        """Genera una etiqueta con layout compacto y colores como el formato de referencia."""
+        from PIL import ImageOps
+
+        # Se dibuja en la base original para conservar el layout sin deformarlo.
+        W = BASE_LABEL_W
+        H = BASE_LABEL_H
         img = Image.new("RGB", (W, H), "white")
         draw = ImageDraw.Draw(img)
+
+        c_border = "#1F1F1F"
+        c_gray = "#E7E7E7"
+        c_white = "#FFFFFF"
+        c_peach = "#EFC3A4"
 
         # Fuentes
         try:
             font_header = ImageFont.truetype("arialbd.ttf", 14)
-            font_name = ImageFont.truetype("arialbd.ttf", 15)
+            font_sub = ImageFont.truetype("arial.ttf", 10)
             font_label = ImageFont.truetype("arialbd.ttf", 9)
             font_value = ImageFont.truetype("arial.ttf", 11)
-            font_code_num = ImageFont.truetype("arialbd.ttf", 32)
-            font_big = ImageFont.truetype("arialbd.ttf", 28)
-            font_small = ImageFont.truetype("arial.ttf", 8)
+            font_name = ImageFont.truetype("arialbd.ttf", 28)
+            font_code_label = ImageFont.truetype("arial.ttf", 9)
             font_cond = ImageFont.truetype("arial.ttf", 10)
+            font_big = ImageFont.truetype("arialbd.ttf", 42)
         except (OSError, IOError):
             font_header = ImageFont.load_default()
-            font_name = font_header
+            font_sub = font_header
             font_label = font_header
             font_value = font_header
-            font_code_num = font_header
-            font_big = font_header
-            font_small = font_header
+            font_name = font_header
+            font_code_label = font_header
             font_cond = font_header
+            font_big = font_header
 
-        M = 8
-        x0 = M
-        x1 = W - M
+        def center_text(text: str, left: int, top: int, right: int, bottom: int, font, fill=c_border):
+            bbox = draw.textbbox((0, 0), text, font=font)
+            tw = bbox[2] - bbox[0]
+            th = bbox[3] - bbox[1]
+            tx = left + max(0, (right - left - tw) // 2)
+            ty = top + max(0, (bottom - top - th) // 2)
+            draw.text((tx, ty), text, fill=fill, font=font)
 
-        # Posiciones de columnas
-        logo_end = 150
-        left_val = 130
-        right_label = 350
-        right_val = 500
-        code_col = 620
+        def wrap_text(value: str, max_chars: int) -> list[str]:
+            words = value.split()
+            if not words:
+                return []
+            lines: list[str] = []
+            line = ""
+            for word in words:
+                proposal = f"{line} {word}".strip()
+                if len(proposal) <= max_chars:
+                    line = proposal
+                else:
+                    if line:
+                        lines.append(line)
+                    line = word
+            if line:
+                lines.append(line)
+            return lines
 
-        y = M
+        m = 8
+        x0, y0 = m, m
+        x1, y1 = W - m, H - m
 
-        # ── Fila 1: Encabezado (Logo + Título) ──
-        hdr_h = 28
-        draw.rectangle([x0, y, x1, y + hdr_h], outline="#333", width=1)
-        draw.line([logo_end, y, logo_end, y + hdr_h], fill="#333", width=1)
+        # Columnas principales
+        code_col = x1 - 70
+        left_label_end = x0 + 126
+        right_label_start = x0 + 310
+        right_value_start = x0 + 425
+        logo_end = x0 + 126
 
-        logo_path = IMAGES_PATH / "imagenppal.jpg"
+        y = y0
+        h1 = 22
+        h2 = 20
+        h_name = 50
+        h_row = 30
+        h_head_bottom = 22
+        h_bottom = 92
+
+        # Bloque superior: logo (celda fusionada 2 filas) + encabezados
+        top_h = h1 + h2
+        draw.rectangle([x0, y, x1, y + top_h], fill=c_white, outline=c_border, width=1)
+        draw.line([logo_end, y, logo_end, y + top_h], fill=c_border, width=1)
+        draw.line([logo_end, y + h1, x1, y + h1], fill=c_border, width=1)
+
+        logo_path = IMAGES_PATH / "imgLogocecif.png"
         try:
-            logo = Image.open(logo_path)
-            logo.thumbnail((logo_end - x0 - 8, hdr_h - 4))
-            img.paste(logo, (x0 + 4, y + (hdr_h - logo.size[1]) // 2))
+            logo = Image.open(logo_path).convert("RGB")
+            logo_fit = ImageOps.fit(logo, (logo_end - x0 - 2, top_h - 2), method=Image.Resampling.LANCZOS)
+            img.paste(logo_fit, (x0 + 1, y + 1))
         except Exception:
-            draw.text((x0 + 10, y + 6), "CECIF", fill="#333", font=font_header)
+            draw.text((x0 + 8, y + (top_h // 2) - 8), "CECIF", fill=c_border, font=font_header)
 
-        title = "IDENTIFICACIÓN DE REACTIVO"
-        bbox_t = draw.textbbox((0, 0), title, font=font_header)
-        tw = bbox_t[2] - bbox_t[0]
-        title_area = x1 - logo_end
-        draw.text((logo_end + (title_area - tw) // 2, y + 6), title, fill="#333", font=font_header)
-        y += hdr_h
+        center_text("IDENTIFICACION DE REACTIVO", logo_end, y, x1, y + h1, font_header)
 
-        # ── Fila 2: Sub-encabezado (LE-FO006/01 | V4/fecha | PÁGINA) ──
-        sub_h = 18
-        draw.rectangle([x0, y, x1, y + sub_h], outline="#333", width=1)
-        draw.line([logo_end, y, logo_end, y + sub_h], fill="#333", width=1)
+        # Fila 2 (solo zona derecha): LE-FO | version | pagina
+        t_w = x1 - logo_end
+        s1 = logo_end + (t_w // 3)
+        s2 = logo_end + ((t_w // 3) * 2)
+        row2_y = y + h1
+        draw.line([s1, row2_y, s1, row2_y + h2], fill=c_border, width=1)
+        draw.line([s2, row2_y, s2, row2_y + h2], fill=c_border, width=1)
+        center_text("LE-FO006/01", logo_end, row2_y, s1, row2_y + h2, font_sub)
+        center_text("V4 / 2025-06-16", s1, row2_y, s2, row2_y + h2, font_sub)
+        center_text("PAGINA 1 DE 1", s2, row2_y, x1, row2_y + h2, font_sub)
+        y += top_h
 
-        sec_w = title_area // 3
-        sec1 = logo_end
-        sec2 = logo_end + sec_w
-        sec3 = logo_end + sec_w * 2
-        draw.line([sec2, y, sec2, y + sub_h], fill="#333", width=1)
-        draw.line([sec3, y, sec3, y + sub_h], fill="#333", width=1)
+        # Fila 3: Nombre + celda de etiqueta Codigo
+        draw.rectangle([x0, y, x1, y + h_name], fill=c_white, outline=c_border, width=1)
+        draw.line([code_col, y, code_col, y + h_name], fill=c_border, width=1)
+        draw.rectangle([x0, y, left_label_end, y + h_name], fill=c_gray, outline=c_border, width=1)
+        draw.rectangle([code_col, y, x1, y + h_name], fill=c_gray, outline=c_border, width=1)
+        draw.text((x0 + 4, y + 4), "NOMBRE", fill=c_border, font=font_label)
+        center_text("Codigo", code_col, y, x1, y + h_name, font_code_label)
 
-        draw.text((sec1 + 8, y + 3), "LE-FO006/01", fill="#333", font=font_small)
-        draw.text((sec2 + 8, y + 3), "V4", fill="#333", font=font_small)
-        draw.text((sec3 + 8, y + 3), "PÁGINA 1 DE 1", fill="#333", font=font_small)
-        y += sub_h
+        nombre = str(data.get("nombre", ""))
+        name_bbox = draw.textbbox((0, 0), nombre, font=font_name)
+        name_w = name_bbox[2] - name_bbox[0]
+        fit_name = font_name
+        if name_w > (code_col - left_label_end - 12):
+            try:
+                fit_name = ImageFont.truetype("arialbd.ttf", 18)
+            except (OSError, IOError):
+                fit_name = font_header
+        center_text(nombre, left_label_end, y + 7, code_col, y + h_name, fit_name)
+        y += h_name
 
-        # ── Fila 3: NOMBRE + Código ──
-        name_h = 42
-        draw.rectangle([x0, y, x1, y + name_h], outline="#333", width=1)
-        draw.line([code_col, y, code_col, y + name_h], fill="#333", width=1)
+        # Fila 4: Lote / Presentacion + Codigo (valor)
+        draw.rectangle([x0, y, code_col, y + h_row], fill=c_white, outline=c_border, width=1)
+        draw.rectangle([code_col, y, x1, y + h_row], fill=c_white, outline=c_border, width=1)
+        draw.line([left_label_end, y, left_label_end, y + h_row], fill=c_border, width=1)
+        draw.line([right_label_start, y, right_label_start, y + h_row], fill=c_border, width=1)
+        draw.line([right_value_start, y, right_value_start, y + h_row], fill=c_border, width=1)
+        draw.rectangle([x0, y, left_label_end, y + h_row], fill=c_gray, outline=c_border, width=1)
+        draw.rectangle([right_label_start, y, right_value_start, y + h_row], fill=c_gray, outline=c_border, width=1)
+        draw.text((x0 + 4, y + 4), "LOTE", fill=c_border, font=font_label)
+        center_text(str(data.get("lote", "")), left_label_end, y, right_label_start, y + h_row, font_value)
+        draw.text((right_label_start + 4, y + 4), "PRESENTACION", fill=c_border, font=font_label)
+        center_text(str(data.get("presentacion", "")), right_value_start, y, code_col, y + h_row, font_value)
 
-        draw.text((x0 + 4, y + 4), "NOMBRE", fill="#333", font=font_label)
+        code_text = str(data.get("codigo", ""))
+        code_size = 40
+        max_w = (x1 - code_col) - 8
+        max_h = h_row - 6
+        code_font = font_header
+        while code_size >= 12:
+            try:
+                code_font = ImageFont.truetype("arialbd.ttf", code_size)
+            except (OSError, IOError):
+                code_font = font_header
+            bbox_code = draw.textbbox((0, 0), code_text, font=code_font)
+            text_w = bbox_code[2] - bbox_code[0]
+            text_h = bbox_code[3] - bbox_code[1]
+            if text_w <= max_w and text_h <= max_h:
+                break
+            code_size -= 2
+        center_text(code_text, code_col, y, x1, y + h_row, code_font)
+        y += h_row
 
-        nombre = data.get("nombre", "")
-        bbox_n = draw.textbbox((0, 0), nombre, font=font_name)
-        nw = bbox_n[2] - bbox_n[0]
-        name_area = code_col - left_val
-        draw.text((left_val + (name_area - nw) // 2, y + 18), nombre, fill="#333", font=font_name)
-
-        draw.text((code_col + 4, y + 2), "Código", fill="#333", font=font_label)
-        code_y_start = y + 14
-        y += name_h
-
-        # ── Fila 4: LOTE + PRESENTACIÓN (+ Código sigue a la derecha) ──
-        row_h = 28
-        draw.rectangle([x0, y, code_col, y + row_h], outline="#333", width=1)
-        draw.rectangle([code_col, y, x1, y + row_h], outline="#333", width=1)
-        draw.line([left_val, y, left_val, y + row_h], fill="#333", width=1)
-        draw.line([right_label, y, right_label, y + row_h], fill="#333", width=1)
-        draw.line([right_val, y, right_val, y + row_h], fill="#333", width=1)
-
-        draw.text((x0 + 4, y + 3), "LOTE", fill="#333", font=font_label)
-        draw.text((left_val + 8, y + 8), data.get("lote", ""), fill="#333", font=font_value)
-        draw.text((right_label + 4, y + 3), "PRESENTACIÓN", fill="#333", font=font_label)
-        draw.text((right_val + 8, y + 8), data.get("presentacion", ""), fill="#333", font=font_value)
-
-        # Número de Código grande (abarca filas NOMBRE y LOTE)
-        codigo = data.get("codigo", "")
-        code_y_end = y + row_h
-        code_area_w = x1 - code_col
-        bbox_c = draw.textbbox((0, 0), codigo, font=font_code_num)
-        cw = bbox_c[2] - bbox_c[0]
-        ch = bbox_c[3] - bbox_c[1]
-        code_center_y = code_y_start + (code_y_end - code_y_start - ch) // 2
-        draw.text((code_col + (code_area_w - cw) // 2, code_center_y), codigo, fill="#333", font=font_code_num)
-        y += row_h
-
-        # ── Filas 5-8: Datos estándar ──
-        data_rows = [
+        # Filas de datos
+        rows = [
             ("FECHA VENCE", data.get("fv", ""), "UNIDAD DE MEDIDA", data.get("unidad", "")),
-            ("CONCENTRACIÓN", data.get("concentracion", ""), "FABRICANTE", data.get("proveedor", "")),
+            ("CONCENTRACION", data.get("concentracion", ""), "FABRICANTE", data.get("proveedor", "")),
             ("FECHA INGRESO", data.get("fecha_entrada", ""), "CAS", data.get("cas", "")),
-            ("FECHA DE APERTURA", "", "UBICACIÓN STOCK:", data.get("ubicacion", "")),
+            ("FECHA DE APERTURA", "", "UBICACION STOCK:", ""),
         ]
 
-        for left_lbl, left_v, right_lbl, right_v in data_rows:
-            draw.rectangle([x0, y, x1, y + row_h], outline="#333", width=1)
-            draw.line([left_val, y, left_val, y + row_h], fill="#333", width=1)
-            draw.line([right_label, y, right_label, y + row_h], fill="#333", width=1)
-            draw.line([right_val, y, right_val, y + row_h], fill="#333", width=1)
+        for left_lbl, left_val, right_lbl, right_val in rows:
+            draw.rectangle([x0, y, x1, y + h_row], fill=c_white, outline=c_border, width=1)
+            draw.line([left_label_end, y, left_label_end, y + h_row], fill=c_border, width=1)
+            draw.line([right_label_start, y, right_label_start, y + h_row], fill=c_border, width=1)
+            draw.line([right_value_start, y, right_value_start, y + h_row], fill=c_border, width=1)
+            draw.rectangle([x0, y, left_label_end, y + h_row], fill=c_gray, outline=c_border, width=1)
+            draw.rectangle([right_label_start, y, right_value_start, y + h_row], fill=c_gray, outline=c_border, width=1)
+            draw.text((x0 + 4, y + 4), left_lbl, fill=c_border, font=font_label)
+            center_text(str(left_val), left_label_end, y, right_label_start, y + h_row, font_value)
+            draw.text((right_label_start + 4, y + 4), right_lbl, fill=c_border, font=font_label)
+            center_text(str(right_val), right_value_start, y, x1, y + h_row, font_value)
+            y += h_row
 
-            draw.text((x0 + 4, y + 3), left_lbl, fill="#333", font=font_label)
-            draw.text((left_val + 8, y + 8), left_v, fill="#333", font=font_value)
-            draw.text((right_label + 4, y + 3), right_lbl, fill="#333", font=font_label)
-            draw.text((right_val + 8, y + 8), right_v, fill="#333", font=font_value)
-            y += row_h
-
-        # ── Fila 9: Encabezados ALMACENAMIENTO | UBICACIÓN ──
-        hdr_row_h = 20
+        # Encabezado inferior
         half = x0 + (x1 - x0) // 2
-        draw.rectangle([x0, y, x1, y + hdr_row_h], outline="#333", width=1)
-        draw.line([half, y, half, y + hdr_row_h], fill="#333", width=1)
+        draw.rectangle([x0, y, x1, y + h_head_bottom], fill=c_gray, outline=c_border, width=1)
+        draw.line([half, y, half, y + h_head_bottom], fill=c_border, width=1)
+        center_text("ALMACENAMIENTO", x0, y, half, y + h_head_bottom, font_label)
+        center_text("UBICACION", half, y, x1, y + h_head_bottom, font_label)
+        y += h_head_bottom
 
-        alm_text = "ALMACENAMIENTO"
-        bbox_a = draw.textbbox((0, 0), alm_text, font=font_label)
-        aw = bbox_a[2] - bbox_a[0]
-        draw.text((x0 + ((half - x0) - aw) // 2, y + 5), alm_text, fill="#333", font=font_label)
+        # Fila final: izquierda blanca con texto + derecha durazno con ubicacion
+        draw.rectangle([x0, y, half, y + h_bottom], fill=c_white, outline=c_border, width=1)
+        draw.rectangle([half, y, x1, y + h_bottom], fill=c_peach, outline=c_border, width=1)
+        lines = wrap_text(str(data.get("condicion", "")), 58)
+        ty = y + 8
+        for line in lines[:4]:
+            draw.text((x0 + 8, ty), line, fill=c_border, font=font_cond)
+            ty += 16
 
-        ubi_text = "UBICACIÓN"
-        bbox_ub = draw.textbbox((0, 0), ubi_text, font=font_label)
-        ubw = bbox_ub[2] - bbox_ub[0]
-        draw.text((half + ((x1 - half) - ubw) // 2, y + 5), ubi_text, fill="#333", font=font_label)
-        y += hdr_row_h
+        center_text(str(data.get("ubicacion", "")), half, y, x1, y + h_bottom, font_big)
 
-        # ── Fila 10: Condición (izq) + Ubicación grande (der) ──
-        bot_h = 75
-        draw.rectangle([x0, y, x1, y + bot_h], fill="#FDEBD0", outline="#333", width=1)
-        draw.line([half, y, half, y + bot_h], fill="#333", width=1)
+        return img.resize((LABEL_W_PX, LABEL_H_PX), resample=Image.Resampling.LANCZOS)
 
-        # Texto condición (izquierda, word-wrap)
-        cond = data.get("condicion", "")
-        cond_x = x0 + 8
-        cond_y = y + 8
-        chars_per_line = (half - x0 - 16) // 6
-        remaining = cond
-        while remaining and cond_y < y + bot_h - 6:
-            line_text = remaining[:chars_per_line]
-            remaining = remaining[chars_per_line:]
-            draw.text((cond_x, cond_y), line_text, fill="#333", font=font_cond)
-            cond_y += 14
+    def _build_a4_pages(self, label_img, cantidad: int, Image) -> list:
+        """Crea páginas A4 reales con posiciones de etiqueta fijas en milímetros."""
+        pages = []
+        max_per_page = len(LABEL_POSITIONS_PX)
 
-        # Ubicación grande (derecha, centrada)
-        ubic = data.get("ubicacion", "")
-        bbox_loc = draw.textbbox((0, 0), ubic, font=font_big)
-        lw = bbox_loc[2] - bbox_loc[0]
-        lh = bbox_loc[3] - bbox_loc[1]
-        loc_area_w = x1 - half
-        draw.text((half + (loc_area_w - lw) // 2, y + (bot_h - lh) // 2), ubic, fill="#333", font=font_big)
-        y += bot_h
+        for start in range(0, cantidad, max_per_page):
+            page = Image.new("RGB", (A4_W, A4_H), "white")
+            count = min(max_per_page, cantidad - start)
+            for i in range(count):
+                x, y = LABEL_POSITIONS_PX[i]
+                page.paste(label_img, (x, y))
+            pages.append(page)
 
-        # Recortar al alto real
-        final_h = y + M
-        img = img.crop((0, 0, W, final_h))
+        return pages
 
-        return img
-
-    def _save_as_pdf(self, img, path: str, cantidad: int, Image) -> None:
-        """Guarda la(s) etiqueta(s) en formato PDF."""
-        pages = [img.copy() for _ in range(cantidad)]
+    def _save_as_pdf(self, pages: list, path: str) -> None:
+        """Guarda páginas A4 en PDF a 300 DPI sin escalado automático."""
         if len(pages) == 1:
-            pages[0].save(path, "PDF", resolution=150)
+            pages[0].save(path, "PDF", resolution=300)
         else:
-            pages[0].save(path, "PDF", resolution=150, save_all=True, append_images=pages[1:])
+            pages[0].save(path, "PDF", resolution=300, save_all=True, append_images=pages[1:])

@@ -32,6 +32,182 @@
       "valor_anterior": "15.0",
       "valor_nuevo": "16.0",
       "id": 3
+    },
+    {
+      "fecha_hora": "2026-03-31 08:32:06",
+      "usuario": "Administrador",
+      "tipo_operacion": "Salida",
+      "hoja": "Ajuste",
+      "id_registro": "10",
+      "campo": "salida_completa",
+      "valor_anterior": "",
+      "valor_nuevo": "SUB001 | Lote: LOT-2026-001 | Cant: 4200.0",
+      "id": 4
+    },
+    {
+      "fecha_hora": "2026-03-31 11:04:53",
+      "usuario": "Administrador",
+      "tipo_operacion": "Entrada",
+      "hoja": "Cliente",
+      "id_registro": "8",
+      "campo": "entrada_completa",
+      "valor_anterior": "",
+      "valor_nuevo": "SUB002 | Lote: aaaa | Total: 2.0",
+      "id": 5
+    },
+    {
+      "fecha_hora": "2026-03-31 11:05:35",
+      "usuario": "Administrador",
+      "tipo_operacion": "Salida",
+      "hoja": "Vencimiento",
+      "id_registro": "11",
+      "campo": "mover_stock_vigencia",
+      "valor_anterior": "",
+      "valor_nuevo": "SUB002 | Lote: aaaa | Cant: 2.0",
+      "id": 6
+    },
+    {
+      "fecha_hora": "2026-03-31 11:07:28",
+      "usuario": "Administrador",
+      "tipo_operacion": "Salida",
+      "hoja": "Devolución",
+      "id_registro": "12",
+      "campo": "salida_completa",
+      "valor_anterior": "",
+      "valor_nuevo": "SUB002 | Lote: LOT-2026-002 | Cant: 10.0",
+      "id": 7
+    },
+    {
+      "fecha_hora": "2026-03-31 11:29:59",
+      "usuario": "Administrador",
+      "tipo_operacion": "Anulación",
+      "hoja": "Salida",
+      "id_registro": "12",
+      "campo": "anulacion_salida",
+      "valor_anterior": "SUB002 | Lote: LOT-2026-002 | Cant: 10.0",
+      "valor_nuevo": "ANULADO | Motivo: Cancelado",
+      "id": 8
+    },
+    {
+      "fecha_hora": "2026-03-31 11:30:29",
+      "usuario": "Administrador",
+      "tipo_operacion": "Anulación",
+      "hoja": "Salida",
+      "id_registro": "11",
+      "campo": "anulacion_salida",
+      "valor_anterior": "SUB002 | Lote: aaaa | Cant: 2.0",
+      "valor_nuevo": "ANULADO | Motivo: cancelado",
+      "id": 9
+    },
+    {
+      "fecha_hora": "2026-03-31 11:56:39",
+      "usuario": "Administrador",
+      "tipo_operacion": "Salida",
+      "hoja": "Cliente",
+      "id_registro": "13",
+      "campo": "salida_completa",
+      "valor_anterior": "",
+      "valor_nuevo": "SUB002 | Lote: aaaa | Cant: 2.0",
+      "id": 10
+    },
+    {
+      "fecha_hora": "2026-03-31 12:16:43",
+      "usuario": "Administrador",
+      "tipo_operacion": "Anulación",
+      "hoja": "Salida",
+      "id_registro": "13",
+      "campo": "anulacion_salida",
+      "valor_anterior": "SUB002 | Lote: aaaa | Cant: 2.0",
+      "valor_nuevo": "ANULADO | Motivo: cancelado",
+      "id": 11
+    },
+    {
+      "fecha_hora": "2026-03-31 12:18:11",
+      "usuario": "Administrador",
+      "tipo_operacion": "Salida",
+      "hoja": "Vencimiento",
+      "id_registro": "14",
+      "campo": "mover_stock_vigencia",
+      "valor_anterior": "",
+      "valor_nuevo": "SUB002 | Lote: aaaa | Cant: 2.0",
+      "id": 12
+    },
+    {
+      "fecha_hora": "2026-04-02 12:03:08",
+      "usuario": "Administrador",
+      "tipo_operacion": "Entrada",
+      "hoja": "Compra",
+      "id_registro": "9",
+      "campo": "entrada_completa",
+      "valor_anterior": "",
+      "valor_nuevo": "SUB001 | Lote: Lote123 | Total: 500.0",
+      "id": 13
+    },
+    {
+      "fecha_hora": "2026-04-02 12:03:42",
+      "usuario": "Administrador",
+      "tipo_operacion": "Edición",
+      "hoja": "Entrada",
+      "id_registro": "9",
+      "campo": "lote",
+      "valor_anterior": "Lote123",
+      "valor_nuevo": "Lote1234",
+      "id": 14
+    },
+    {
+      "fecha_hora": "2026-04-02 12:03:42",
+      "usuario": "Administrador",
+      "tipo_operacion": "Edición",
+      "hoja": "Entrada",
+      "id_registro": "9",
+      "campo": "costo_unitario",
+      "valor_anterior": "2000000",
+      "valor_nuevo": "2100000",
+      "id": 15
+    },
+    {
+      "fecha_hora": "2026-04-02 12:03:42",
+      "usuario": "Administrador",
+      "tipo_operacion": "Edición",
+      "hoja": "Entrada",
+      "id_registro": "9",
+      "campo": "costo_total",
+      "valor_anterior": "10000000.0",
+      "valor_nuevo": "10500000.0",
+      "id": 16
+    },
+    {
+      "fecha_hora": "2026-04-02 12:03:42",
+      "usuario": "Administrador",
+      "tipo_operacion": "Edición",
+      "hoja": "Entrada",
+      "id_registro": "9",
+      "campo": "ubicacion",
+      "valor_anterior": "Estante A",
+      "valor_nuevo": "Estante B",
+      "id": 17
+    },
+    {
+      "fecha_hora": "2026-04-02 16:34:37",
+      "usuario": "Administrador",
+      "tipo_operacion": "Salida",
+      "hoja": "Ajuste",
+      "id_registro": "15",
+      "campo": "salida_completa",
+      "valor_anterior": "",
+      "valor_nuevo": "SUB001 | Lote: Lote1234 | Cant: 500.0",
+      "id": 18
+    },
+    {
+      "fecha_hora": "2026-04-02 16:36:28",
+      "usuario": "Administrador",
+      "tipo_operacion": "Anulación",
+      "hoja": "Salida",
+      "id_registro": "15",
+      "campo": "anulacion_salida",
+      "valor_anterior": "SUB001 | Lote: Lote1234 | Cant: 500.0",
+      "valor_nuevo": "ANULADO | Motivo: error al hacer la salida",
+      "id": 19
     }
   ]
 }

@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from config.config import COLORS, ENTRADAS_FILE, SALIDAS_FILE
+from ui.styles import build_header
 from utils.data_handler import DataHandler
 
 
@@ -24,19 +25,14 @@ class StockWindow:
         wrapper = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=12, pady=12)
         wrapper.pack(expand=True, fill="both", padx=14, pady=14)
 
-        tk.Label(
-            wrapper,
-            text="Stock",
-            bg=COLORS["primary"],
-            fg=COLORS["text_light"],
-            font=("Segoe UI", 16, "bold"),
-            pady=6,
-        ).pack(fill="x", pady=(0, 10))
+        build_header(wrapper, "Sistema de Gestión  -  Stock")
 
         search_row = tk.Frame(wrapper, bg="white")
         search_row.pack(fill="x", pady=(0, 8))
 
-        tk.Entry(search_row, textvariable=self.search_var).pack(side="left", fill="x", expand=True, padx=(0, 8))
+        search_entry = tk.Entry(search_row, textvariable=self.search_var)
+        search_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        search_entry.bind("<Return>", lambda e: self.load_table())
         tk.Button(
             search_row,
             text="Buscar",
@@ -52,8 +48,14 @@ class StockWindow:
             "codigo", "nombre", "lote", "unidad", "presentacion",
             "entrada", "salida", "stock", "ubicacion", "fv", "proveedor",
         )
-        self.tree = ttk.Treeview(wrapper, columns=columns, show="headings", height=14)
-        self.tree.pack(expand=True, fill="both")
+        tree_frame = tk.Frame(wrapper, bg="white")
+        tree_frame.pack(expand=True, fill="both")
+
+        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=14)
+        tree_scroll_y = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=tree_scroll_y.set)
+        self.tree.pack(side="left", expand=True, fill="both")
+        tree_scroll_y.pack(side="right", fill="y")
 
         headings = {
             "codigo": "Código",

@@ -4,16 +4,17 @@ import tkinter as tk
 from config.config import (
     ALMACENES_FILE,
     CONDICIONES_FILE,
+    IMAGES_PATH,
     PROVEEDORES_FILE,
     TIPOS_ENTRADA_FILE,
     TIPOS_SALIDA_FILE,
     UBICACIONES_FILE,
     UNIDADES_FILE,
 )
-from config.config import COLORS, IMAGES_PATH
+from config.config import COLORS
 from ui.bitacora import BitacoraWindow
 from ui.entradas import EntryFormWindow
-from ui.maestras import MasterCatalogWindow, SubstanceMasterWindow
+from ui.maestras import LocationMasterWindow, MasterCatalogWindow, SubstanceMasterWindow
 from ui.salidas import SalidasWindow
 from ui.stock import StockWindow
 from ui.users import CreateUserWindow
@@ -28,110 +29,91 @@ class MainMenuWindow:
         self.user = user
         self.main_image_tk = None
         self.button_images = {}
+        self._open_windows: list[tk.Toplevel] = []
         self._build_ui()
 
     def _build_ui(self) -> None:
         self.root.configure(bg=COLORS["secondary"])
         self._set_balanced_geometry()
 
-        wrapper = tk.Frame(self.root, bg=COLORS["secondary"], padx=18, pady=14)
+        wrapper = tk.Frame(self.root, bg="white", bd=1, relief="solid", padx=14, pady=12)
         wrapper.pack(expand=True, fill="both")
 
-        shell = tk.Frame(wrapper, bg="white", bd=1, relief="solid", padx=14, pady=12)
-        shell.pack(expand=True, fill="both")
+        # ── Header: barra rosa con título + logo ──
+        header = tk.Frame(wrapper, bg=COLORS["primary"])
+        header.pack(fill="x", pady=(0, 8))
 
-        top_label = tk.Label(
-            shell,
-            text="MENU PRINCIPAL",
-            bg="white",
-            fg="#2E2E2E",
-            font=("Segoe UI", 12),
-        )
-        top_label.pack(anchor="w", pady=(0, 4))
+        tk.Label(
+            header,
+            text="Sistema de Gestión  -  Menú Principal",
+            bg=COLORS["primary"],
+            fg="white",
+            font=("Segoe UI", 18, "bold"),
+            padx=14,
+            pady=8,
+        ).pack(side="left", fill="x", expand=True)
 
-        top = tk.Frame(shell, bg="white")
-        top.pack(fill="x", pady=(0, 12))
+        self._place_header_logo(header, height=80)
 
-        brand = tk.Frame(top, bg="white")
-        brand.pack(side="left", fill="x", expand=True)
+        # ── Info usuario + Login ──
+        info_row = tk.Frame(wrapper, bg="white")
+        info_row.pack(fill="x", pady=(0, 8))
+
         tk.Label(
-            brand,
-            text="CECIF",
-            bg="white",
-            fg="#232323",
-            font=("Segoe UI", 50, "bold"),
-        ).pack(anchor="w", pady=(2, 0))
-        tk.Label(
-            brand,
-            text="CENTRO DE LA CIENCIA Y LA INVESTIGACION FARMACEUTICA",
-            bg="white",
-            fg=COLORS["button_hover"],
-            font=("Segoe UI", 8, "bold"),
-        ).pack(anchor="w", pady=(0, 4))
-        tk.Label(
-            brand,
+            info_row,
             text=f"Usuario: {self.user.get('nombre', 'N/A')} ({self.user.get('rol', 'N/A')})",
             bg="white",
             fg=COLORS["text_dark"],
             font=("Segoe UI", 10),
-        ).pack(anchor="w")
+        ).pack(side="left")
 
-        top_right = tk.Frame(top, bg="white")
-        top_right.pack(side="right", fill="y")
-
-        tk.Label(
-            top_right,
-            text="CONTROL DE INVENTARIO",
-            bg="white",
-            fg=COLORS["primary"],
-            font=("Segoe UI", 32, "bold"),
-        ).pack(anchor="e", pady=(0, 4))
         tk.Button(
-            top_right,
-            text="Login",
+            info_row,
+            text="Salir",
             command=self.root.destroy,
+            bg=COLORS["error"],
+            fg=COLORS["text_light"],
+            relief="flat",
+            font=("Segoe UI", 10, "bold"),
+            padx=16,
+            pady=3,
+        ).pack(side="right")
+
+        tk.Button(
+            info_row,
+            text="Cerrar sesión",
+            command=self._logout,
             bg=COLORS["primary"],
             fg=COLORS["text_light"],
             relief="flat",
-            font=("Segoe UI", 11, "bold"),
-            padx=20,
-            pady=5,
-        ).pack(anchor="e")
+            font=("Segoe UI", 10, "bold"),
+            padx=16,
+            pady=3,
+        ).pack(side="right", padx=(0, 8))
 
-        body = tk.Frame(shell, bg="white")
+        # ── Body: imagen + paneles ──
+        body = tk.Frame(wrapper, bg="white")
         body.pack(expand=True, fill="both")
 
         media_col = tk.LabelFrame(
-            body,
-            text="",
-            bg="white",
-            fg=COLORS["text_dark"],
-            font=("Segoe UI", 11, "bold"),
-            bd=1,
+            body, text="", bg="white", fg=COLORS["text_dark"],
+            font=("Segoe UI", 11, "bold"), bd=1,
         )
-        media_col.grid(row=0, column=0, sticky="nsew", padx=(0, 12), pady=(4, 0))
+        media_col.grid(row=0, column=0, sticky="nsew", padx=(0, 8), pady=(4, 0))
 
         image_placeholder = tk.Frame(media_col, bg="#ECEFF4", bd=1, relief="solid")
-        image_placeholder.pack(expand=True, fill="both", padx=12, pady=12)
+        image_placeholder.pack(expand=True, fill="both", padx=8, pady=8)
         self._render_main_image(image_placeholder)
 
         moves_col = tk.LabelFrame(
-            body,
-            text="Movimientos y Reportes",
-            bg="white",
-            fg=COLORS["text_dark"],
-            font=("Segoe UI", 11, "bold"),
-            bd=1,
+            body, text="Movimientos y Reportes", bg="white", fg=COLORS["text_dark"],
+            font=("Segoe UI", 11, "bold"), bd=1,
         )
-        moves_col.grid(row=0, column=1, sticky="nsew", padx=10, pady=(4, 0))
+        moves_col.grid(row=0, column=1, sticky="nsew", padx=6, pady=(4, 0))
 
         masters_col = tk.LabelFrame(
-            body,
-            text="Maestras",
-            bg="white",
-            fg=COLORS["text_dark"],
-            font=("Segoe UI", 11, "bold"),
-            bd=1,
+            body, text="Maestras", bg="white", fg=COLORS["text_dark"],
+            font=("Segoe UI", 11, "bold"), bd=1,
         )
         masters_col.grid(row=0, column=2, sticky="nsew", padx=(6, 0), pady=(4, 0))
 
@@ -143,7 +125,7 @@ class MainMenuWindow:
                 ("Vigencia", self.open_vigencias, "vigencias"),
                 ("Stock", self.open_stock, "stock"),
                 ("Usuarios", self.open_usuarios, "inventario"),
-                ("Bitacora", self.open_bitacora, "auditoria"),
+                ("Reportes", self.open_bitacora, "auditoria"),
             ],
         )
         self._create_panel_buttons(
@@ -153,10 +135,10 @@ class MainMenuWindow:
                 ("T. Entrada", self.open_tipo_entrada, "inventario"),
                 ("T. Salida", self.open_tipo_salida, "inventario"),
                 ("Proveedor", self.open_proveedor, "inventario"),
+                ("C. Almace", self.open_almacen, "inventario"),
+                ("Cond. Almac.", self.open_condicion_almac, "inventario"),
                 ("Unidad", self.open_unidad, "inventario"),
                 ("Ubicacion", self.open_ubicacion, "inventario"),
-                ("Cond. Almac.", self.open_condicion_almac, "inventario"),
-                ("C. Almace", self.open_almacen, "inventario"),
             ],
         )
 
@@ -164,6 +146,7 @@ class MainMenuWindow:
         body.columnconfigure(1, weight=17)
         body.columnconfigure(2, weight=17)
         body.rowconfigure(0, weight=1)
+        
 
     def _set_balanced_geometry(self) -> None:
         """Ajusta la ventana a un tamano comodo segun la resolucion actual."""
@@ -212,6 +195,27 @@ class MainMenuWindow:
             font=("Segoe UI", 9),
         ).pack(pady=(0, 12))
 
+    def _place_header_logo(self, parent: tk.Frame, height: int = 50) -> None:
+        """Coloca el logo de CECIF en el header (lado derecho)."""
+        logo_path = IMAGES_PATH / "imgLogocecif.png"
+        if not logo_path.exists():
+            return
+        try:
+            image_mod = importlib.import_module("PIL.Image")
+            image_tk_mod = importlib.import_module("PIL.ImageTk")
+            img = image_mod.open(logo_path)
+            ratio = height / img.height
+            new_w = int(img.width * ratio)
+            resampling = getattr(image_mod, "Resampling", None)
+            method = resampling.LANCZOS if resampling else image_mod.LANCZOS
+            img = img.resize((new_w, height), method)
+            self.header_logo_tk = image_tk_mod.PhotoImage(img)
+            tk.Label(parent, image=self.header_logo_tk, bg=COLORS["primary"]).pack(
+                side="right", padx=(8, 12), pady=4,
+            )
+        except Exception:
+            pass
+
     def _get_button_image_path(self, label: str) -> str | None:
         """Mapea nombre de botón a archivo de imagen."""
         mapping = {
@@ -221,6 +225,7 @@ class MainMenuWindow:
             "Stock": "imgStock.png",
             "Usuarios": "imgUsuario.png",
             "Bitacora": "imgReporte.png",
+            "Reportes": "imgReporte.png",
             "Sustancias": "imgSustancia.png",
             "T. Entrada": "imgTentrada.png",
             "T. Salida": "imgTentrada.png",
@@ -242,14 +247,14 @@ class MainMenuWindow:
             image_mod = importlib.import_module("PIL.Image")
             image_tk_mod = importlib.import_module("PIL.ImageTk")
             img = image_mod.open(image_path)
-            img.thumbnail((55, 55), image_mod.LANCZOS if hasattr(image_mod, "LANCZOS") else 1)
+            img.thumbnail((45, 55), image_mod.LANCZOS if hasattr(image_mod, "LANCZOS") else 1)
             return image_tk_mod.PhotoImage(img)
         except Exception:
             return None
 
     def _create_panel_buttons(self, parent: tk.Widget, buttons: list[tuple[str, object, str]]) -> None:
         grid = tk.Frame(parent, bg="white")
-        grid.pack(expand=True, fill="both", padx=8, pady=8)
+        grid.pack(fill="x", padx=6, pady=6)
 
         perms = self.user.get("permisos", {})
         is_admin = str(self.user.get("rol", "")).lower() == "admin"
@@ -259,91 +264,159 @@ class MainMenuWindow:
             col = idx % 2
             has_access = is_admin or perms.get(perm_key, False)
 
-            button_shell = tk.Frame(grid, bg="white", bd=1, relief="solid", padx=6, pady=10)
-            button_shell.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            cmd = callback if has_access else self._no_access
+            fg = COLORS["text_dark"] if has_access else "#999999"
+            bg = "white" if has_access else "#E0E0E0"
+            state = "normal" if has_access else "disabled"
 
-            icon_frame = tk.Frame(button_shell, bg="white")
-            icon_frame.pack(side="left", padx=(0, 8))
-
+            # Cargar icono
+            icon_tk = None
             img_filename = self._get_button_image_path(label)
             if img_filename:
                 icon_tk = self._load_button_icon(img_filename)
                 if icon_tk:
                     self.button_images[label] = icon_tk
-                    tk.Label(icon_frame, image=icon_tk, bg="white").pack()
-                else:
-                    tk.Label(icon_frame, text="□", bg="white", fg="#CCC", font=("Segoe UI", 14)).pack()
-            else:
-                tk.Label(icon_frame, text="□", bg="white", fg="#CCC", font=("Segoe UI", 14)).pack()
 
+            # Botón único con imagen + texto — toda la celda es clickeable
             btn = tk.Button(
-                button_shell,
-                text=label,
-                command=callback if has_access else self._no_access,
-                bg="white" if has_access else "#E0E0E0",
-                fg=COLORS["text_dark"] if has_access else "#999999",
-                relief="flat",
-                bd=0,
-                activebackground="white",
+                grid,
+                text=f"  {label}",
+                image=icon_tk if icon_tk else "",
+                compound="left" if icon_tk else "none",
+                command=cmd,
+                bg=bg,
+                fg=fg,
+                relief="solid",
+                bd=1,
+                activebackground="#F5F5F5",
                 activeforeground=COLORS["text_dark"],
                 font=("Segoe UI", 11),
                 anchor="w",
-                padx=3,
-                state="normal" if has_access else "disabled",
+                padx=8,
+                pady=3,
+                state=state,
             )
-            btn.pack(side="left", fill="both", expand=True)
+            btn.grid(row=row, column=col, padx=6, pady=8, sticky="nsew")
 
         max_rows = (len(buttons) + 1) // 2
-        for row in range(max_rows):
-            grid.rowconfigure(row, weight=1)
-        for col in range(2):
-            grid.columnconfigure(col, weight=1)
+        for r in range(max_rows):
+            grid.rowconfigure(r, weight=0)
+        for c in range(2):
+            grid.columnconfigure(c, weight=1)
+        # 🔥 Línea justo debajo del último botón
+        separator = tk.Frame(grid, bg="#D0D0D0", height=1)
+        separator.grid(row=max_rows, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+
+    def _can_open_window(self) -> bool:
+        """Limita a 3 ventanas Toplevel abiertas simultáneamente."""
+        self._open_windows = [w for w in self._open_windows if w.winfo_exists()]
+        if len(self._open_windows) >= 3:
+            import tkinter.messagebox as mb
+            mb.showwarning("Límite", "Ya tienes 3 ventanas abiertas. Cierra alguna para abrir otra.")
+            return False
+        return True
+
+    def _track_window(self, obj) -> None:
+        """Registra la ventana Toplevel del objeto abierto."""
+        win = getattr(obj, "window", None)
+        if win is not None:
+            self._open_windows.append(win)
 
     def open_entradas(self) -> None:
-        EntryFormWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
+        if not self._can_open_window():
+            return
+        w = EntryFormWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
+        self._track_window(w)
 
     def open_salidas(self) -> None:
-        SalidasWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
+        if not self._can_open_window():
+            return
+        w = SalidasWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
+        self._track_window(w)
 
     def open_vigencias(self) -> None:
-        VigenciasWindow(self.root)
+        if not self._can_open_window():
+            return
+        w = VigenciasWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
+        self._track_window(w)
 
     def open_stock(self) -> None:
-        StockWindow(self.root)
+        if not self._can_open_window():
+            return
+        w = StockWindow(self.root)
+        self._track_window(w)
 
     def open_usuarios(self) -> None:
-        CreateUserWindow(self.root)
+        if not self._can_open_window():
+            return
+        w = CreateUserWindow(self.root)
+        self._track_window(w)
 
     def open_bitacora(self) -> None:
-        BitacoraWindow(self.root)
+        if not self._can_open_window():
+            return
+        w = BitacoraWindow(self.root)
+        self._track_window(w)
 
     def open_sustancias(self) -> None:
-        SubstanceMasterWindow(self.root)
+        if not self._can_open_window():
+            return
+        w = SubstanceMasterWindow(self.root)
+        self._track_window(w)
 
     def open_tipo_entrada(self) -> None:
-        MasterCatalogWindow(self.root, "T. Entrada", TIPOS_ENTRADA_FILE, "tipos_entrada", "nombre")
+        if not self._can_open_window():
+            return
+        w = MasterCatalogWindow(self.root, "T. Entrada", TIPOS_ENTRADA_FILE, "maestrasTiposEntrada", "nombre")
+        self._track_window(w)
 
     def open_tipo_salida(self) -> None:
-        MasterCatalogWindow(self.root, "T. Salida", TIPOS_SALIDA_FILE, "tipos_salida", "nombre")
+        if not self._can_open_window():
+            return
+        w = MasterCatalogWindow(self.root, "T. Salida", TIPOS_SALIDA_FILE, "maestrasTiposSalida", "nombre")
+        self._track_window(w)
 
     def open_proveedor(self) -> None:
-        MasterCatalogWindow(self.root, "Proveedor", PROVEEDORES_FILE, "proveedores", "nombre")
+        if not self._can_open_window():
+            return
+        w = MasterCatalogWindow(self.root, "Proveedor", PROVEEDORES_FILE, "maestrasProveedores", "nombre")
+        self._track_window(w)
 
     def open_almacen(self) -> None:
-        MasterCatalogWindow(self.root, "C. Almace", ALMACENES_FILE, "almacenes", "nombre")
+        if not self._can_open_window():
+            return
+        w = MasterCatalogWindow(self.root, "C. Almace", ALMACENES_FILE, "maestrasAlmacenes", "nombre")
+        self._track_window(w)
 
     def open_unidad(self) -> None:
-        MasterCatalogWindow(self.root, "Unidad", UNIDADES_FILE, "unidades", "nombre")
+        if not self._can_open_window():
+            return
+        w = MasterCatalogWindow(self.root, "Unidad", UNIDADES_FILE, "maestrasUnidades", "nombre")
+        self._track_window(w)
 
     def open_ubicacion(self) -> None:
-        MasterCatalogWindow(self.root, "Ubicacion", UBICACIONES_FILE, "ubicaciones", "nombre")
+        if not self._can_open_window():
+            return
+        w = LocationMasterWindow(self.root)
+        self._track_window(w)
 
     def open_condicion_almac(self) -> None:
-        MasterCatalogWindow(self.root, "Cond. Almac.", CONDICIONES_FILE, "condiciones_almacenamiento", "nombre")
+        if not self._can_open_window():
+            return
+        w = MasterCatalogWindow(self.root, "Cond. Almac.", CONDICIONES_FILE, "maestrasCondicionesAlmacenamiento", "nombre")
+        self._track_window(w)
 
     def _no_access(self) -> None:
         import tkinter.messagebox as mb
         mb.showwarning("Acceso denegado", "No tiene permisos para acceder a este módulo.")
+
+    def _logout(self) -> None:
+        """Cierra la sesión y vuelve al login."""
+        for child in self.root.winfo_children():
+            child.destroy()
+        self.root.geometry("600x400")
+        from ui.login import LoginWindow
+        LoginWindow(self.root)
 
     def not_implemented(self) -> None:
         top = tk.Toplevel(self.root)

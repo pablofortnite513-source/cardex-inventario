@@ -10,6 +10,7 @@ from config.config import (
     TIPOS_ENTRADA_FILE,
     TIPOS_SALIDA_FILE,
     UBICACIONES_FILE,
+    UBICACIONES_USO_FILE,
     UNIDADES_FILE,
 )
 from utils.data_handler import DataHandler
@@ -46,13 +47,13 @@ class MaestrasWindow:
 
         options = [
             ("Sustancias", self.open_sustancias),
-            ("T. Entrada", lambda: self.open_catalog("T. Entrada", TIPOS_ENTRADA_FILE, "tipos_entrada", "nombre")),
-            ("T. Salida", lambda: self.open_catalog("T. Salida", TIPOS_SALIDA_FILE, "tipos_salida", "nombre")),
-            ("Proveedor", lambda: self.open_catalog("Proveedor", PROVEEDORES_FILE, "proveedores", "nombre")),
-            ("C. Almace", lambda: self.open_catalog("C. Almace", ALMACENES_FILE, "almacenes", "nombre")),
-            ("Unidad", lambda: self.open_catalog("Unidad", UNIDADES_FILE, "unidades", "nombre")),
-            ("Ubicacion", lambda: self.open_catalog("Ubicacion", UBICACIONES_FILE, "ubicaciones", "nombre")),
-            ("Cond. Almac.", lambda: self.open_catalog("Cond. Almac.", CONDICIONES_FILE, "condiciones_almacenamiento", "nombre")),
+            ("T. Entrada", lambda: self.open_catalog("T. Entrada", TIPOS_ENTRADA_FILE, "maestrasTiposEntrada", "nombre")),
+            ("T. Salida", lambda: self.open_catalog("T. Salida", TIPOS_SALIDA_FILE, "maestrasTiposSalida", "nombre")),
+            ("Proveedor", lambda: self.open_catalog("Proveedor", PROVEEDORES_FILE, "maestrasProveedores", "nombre")),
+            ("C. Almace", lambda: self.open_catalog("C. Almace", ALMACENES_FILE, "maestrasAlmacenes", "nombre")),
+            ("Unidad", lambda: self.open_catalog("Unidad", UNIDADES_FILE, "maestrasUnidades", "nombre")),
+            ("Ubicacion", self.open_ubicacion),
+            ("Cond. Almac.", lambda: self.open_catalog("Cond. Almac.", CONDICIONES_FILE, "maestrasCondicionesAlmacenamiento", "nombre")),
         ]
 
         for idx, (label, action) in enumerate(options):
@@ -82,16 +83,19 @@ class MaestrasWindow:
     def open_sustancias(self) -> None:
         SubstanceMasterWindow(self.window)
 
+    def open_ubicacion(self) -> None:
+        LocationMasterWindow(self.window)
+
     def open_from_label(self, label: str) -> None:
         mapping = {
             "Sustancias": self.open_sustancias,
-            "T. Entrada": lambda: self.open_catalog("T. Entrada", TIPOS_ENTRADA_FILE, "tipos_entrada", "nombre"),
-            "T. Salida": lambda: self.open_catalog("T. Salida", TIPOS_SALIDA_FILE, "tipos_salida", "nombre"),
-            "Proveedor": lambda: self.open_catalog("Proveedor", PROVEEDORES_FILE, "proveedores", "nombre"),
-            "C. Almace": lambda: self.open_catalog("C. Almace", ALMACENES_FILE, "almacenes", "nombre"),
-            "Unidad": lambda: self.open_catalog("Unidad", UNIDADES_FILE, "unidades", "nombre"),
-            "Ubicacion": lambda: self.open_catalog("Ubicacion", UBICACIONES_FILE, "ubicaciones", "nombre"),
-            "Cond. Almac.": lambda: self.open_catalog("Cond. Almac.", CONDICIONES_FILE, "condiciones_almacenamiento", "nombre"),
+            "T. Entrada": lambda: self.open_catalog("T. Entrada", TIPOS_ENTRADA_FILE, "maestrasTiposEntrada", "nombre"),
+            "T. Salida": lambda: self.open_catalog("T. Salida", TIPOS_SALIDA_FILE, "maestrasTiposSalida", "nombre"),
+            "Proveedor": lambda: self.open_catalog("Proveedor", PROVEEDORES_FILE, "maestrasProveedores", "nombre"),
+            "C. Almace": lambda: self.open_catalog("C. Almace", ALMACENES_FILE, "maestrasAlmacenes", "nombre"),
+            "Unidad": lambda: self.open_catalog("Unidad", UNIDADES_FILE, "maestrasUnidades", "nombre"),
+            "Ubicacion": self.open_ubicacion,
+            "Cond. Almac.": lambda: self.open_catalog("Cond. Almac.", CONDICIONES_FILE, "maestrasCondicionesAlmacenamiento", "nombre"),
         }
         action = mapping.get(label)
         if action:
@@ -218,7 +222,7 @@ class SubstanceMasterWindow:
             return
 
         data = DataHandler.load_json(SUSTANCIAS_FILE)
-        sustancias = data.get("sustancias", [])
+        sustancias = data.get("maestrasSustancias", [])
 
         if any(item.get("codigo") == codigo for item in sustancias):
             messagebox.showerror("Validacion", "Ya existe una sustancia con ese codigo")
@@ -238,7 +242,7 @@ class SubstanceMasterWindow:
             "unidad": "",
         }
 
-        if not DataHandler.add_record(SUSTANCIAS_FILE, "sustancias", record):
+        if not DataHandler.add_record(SUSTANCIAS_FILE, "maestrasSustancias", record):
             messagebox.showerror("Error", "No se pudo guardar la sustancia")
             return
 
@@ -333,9 +337,9 @@ class MasterCatalogWindow:
 
         payload = {self.display_field: name}
 
-        if self.key == "unidades":
+        if self.key == "maestrasUnidades":
             payload = {"codigo": name.lower(), "nombre": name}
-        elif self.key == "ubicaciones":
+        elif self.key == "maestrasUbicaciones":
             payload = {"codigo": f"UB{str(self.listbox.size() + 1).zfill(3)}", "nombre": name, "almacen": ""}
 
         saved = DataHandler.add_record(self.file_path, self.key, payload)
@@ -368,3 +372,160 @@ class MasterCatalogWindow:
             return
 
         self.reload_items()
+
+
+class LocationMasterWindow:
+    """Catálogo dual de ubicaciones: Ubicación y Ubicación de Uso."""
+
+    def __init__(self, parent):
+        self.window = tk.Toplevel(parent)
+        self.window.title("Maestra - Ubicaciones")
+        self.window.geometry("700x480")
+        self.window.configure(bg=COLORS["secondary"])
+        self.tipo_var = tk.StringVar(value="ubicacion")
+        self._build_ui()
+        self._reload_all()
+
+    def _build_ui(self) -> None:
+        card = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=14, pady=14)
+        card.pack(expand=True, fill="both", padx=14, pady=14)
+
+        tk.Label(
+            card, text="Catálogo: Ubicaciones",
+            bg="white", fg=COLORS["text_dark"],
+            font=("Segoe UI", 13, "bold"),
+        ).pack(anchor="w", pady=(0, 10))
+
+        # ── Tipo de ubicación ──
+        tipo_frame = tk.LabelFrame(card, text="Tipo de ubicación", bg="white",
+                                   fg=COLORS["text_dark"], font=("Segoe UI", 10))
+        tipo_frame.pack(fill="x", pady=(0, 8))
+
+        tk.Radiobutton(
+            tipo_frame, text="Ubicación", variable=self.tipo_var,
+            value="ubicacion", bg="white", font=("Segoe UI", 10, "bold"),
+        ).pack(side="left", padx=16, pady=4)
+        tk.Radiobutton(
+            tipo_frame, text="Ubicación de Uso", variable=self.tipo_var,
+            value="ubicacion_uso", bg="white", font=("Segoe UI", 10, "bold"),
+        ).pack(side="left", padx=16, pady=4)
+
+        # ── Entrada + botón agregar ──
+        entry_row = tk.Frame(card, bg="white")
+        entry_row.pack(fill="x", pady=(0, 8))
+
+        self.name_entry = tk.Entry(entry_row, font=("Segoe UI", 11))
+        self.name_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        tk.Button(
+            entry_row, text="Agregar", bg=COLORS["primary"],
+            fg=COLORS["text_light"], relief="flat", command=self._add_item,
+        ).pack(side="left")
+
+        # ── Listas lado a lado ──
+        lists_frame = tk.Frame(card, bg="white")
+        lists_frame.pack(fill="both", expand=True, pady=(0, 8))
+
+        # Ubicaciones
+        left = tk.LabelFrame(lists_frame, text="Ubicaciones", bg="white",
+                             fg=COLORS["text_dark"], font=("Segoe UI", 10, "bold"))
+        left.pack(side="left", fill="both", expand=True, padx=(0, 4))
+        self.list_ubicacion = tk.Listbox(left, height=10)
+        self.list_ubicacion.pack(fill="both", expand=True, padx=4, pady=4)
+
+        # Ubicaciones de Uso
+        right = tk.LabelFrame(lists_frame, text="Ubicaciones de Uso", bg="white",
+                              fg=COLORS["text_dark"], font=("Segoe UI", 10, "bold"))
+        right.pack(side="left", fill="both", expand=True, padx=(4, 0))
+        self.list_uso = tk.Listbox(right, height=10)
+        self.list_uso.pack(fill="both", expand=True, padx=4, pady=4)
+
+        # ── Botones de acción ──
+        action_row = tk.Frame(card, bg="white")
+        action_row.pack(fill="x")
+
+        tk.Button(
+            action_row, text="Eliminar seleccionado", bg=COLORS["error"],
+            fg=COLORS["text_light"], relief="flat", command=self._delete_selected,
+        ).pack(side="left")
+
+        tk.Button(
+            action_row, text="Actualizar", bg=COLORS["border"],
+            fg=COLORS["text_dark"], relief="flat", command=self._reload_all,
+        ).pack(side="right")
+
+    def _reload_all(self) -> None:
+        ub_data = DataHandler.load_json(UBICACIONES_FILE).get("maestrasUbicaciones", [])
+        uso_data = DataHandler.load_json(UBICACIONES_USO_FILE).get("maestrasUbicacionesUso", [])
+
+        self.list_ubicacion.delete(0, tk.END)
+        for r in ub_data:
+            name = r.get("nombre", "")
+            if name:
+                self.list_ubicacion.insert(tk.END, name)
+
+        self.list_uso.delete(0, tk.END)
+        for r in uso_data:
+            name = r.get("nombre", "")
+            if name:
+                self.list_uso.insert(tk.END, name)
+
+    def _add_item(self) -> None:
+        name = self.name_entry.get().strip()
+        if not name:
+            messagebox.showerror("Validación", "Ingresa un nombre para agregar")
+            return
+
+        tipo = self.tipo_var.get()
+        if tipo == "ubicacion":
+            file_path = UBICACIONES_FILE
+            key = "maestrasUbicaciones"
+            existing = DataHandler.load_json(file_path).get(key, [])
+            payload = {"codigo": f"UB{str(len(existing) + 1).zfill(3)}", "nombre": name, "almacen": ""}
+        else:
+            file_path = UBICACIONES_USO_FILE
+            key = "maestrasUbicacionesUso"
+            payload = {"nombre": name}
+
+        # Verificar duplicados
+        existing = DataHandler.load_json(file_path).get(key, [])
+        if any(r.get("nombre", "").lower() == name.lower() for r in existing):
+            messagebox.showwarning("Duplicado", f"Ya existe '{name}' en este catálogo")
+            return
+
+        if not DataHandler.add_record(file_path, key, payload):
+            messagebox.showerror("Error", "No se pudo guardar el registro")
+            return
+
+        self.name_entry.delete(0, tk.END)
+        self._reload_all()
+
+    def _delete_selected(self) -> None:
+        # Intentar desde ambas listas
+        sel_ub = self.list_ubicacion.curselection()
+        sel_uso = self.list_uso.curselection()
+
+        if sel_ub:
+            selected_name = self.list_ubicacion.get(sel_ub[0])
+            file_path = UBICACIONES_FILE
+            key = "maestrasUbicaciones"
+        elif sel_uso:
+            selected_name = self.list_uso.get(sel_uso[0])
+            file_path = UBICACIONES_USO_FILE
+            key = "maestrasUbicacionesUso"
+        else:
+            messagebox.showwarning("Aviso", "Selecciona un item de cualquiera de las listas")
+            return
+
+        if not messagebox.askyesno("Confirmar", f"¿Desea eliminar '{selected_name}'?"):
+            return
+
+        data = DataHandler.load_json(file_path)
+        records = data.get(key, [])
+        data[key] = [r for r in records if r.get("nombre", "") != selected_name]
+
+        if not DataHandler.save_json(file_path, data):
+            messagebox.showerror("Error", "No se pudo eliminar el registro")
+            return
+
+        self._reload_all()

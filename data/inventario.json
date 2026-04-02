@@ -1,1 +1,108 @@
-{"inventario": []}
+{
+  "inventario": [
+    {
+      "codigo": "SUB001",
+      "nombre": "Ácido Clorhídrico",
+      "lote": "LOT-2026-001",
+      "unidad": "Litro",
+      "ubicacion": "Estante A",
+      "proveedor": "Proveedor A",
+      "fecha_vencimiento": "2028-01-10",
+      "condicion_almacenamiento": "Almacenar en un lugar fresco, seco y bien ventilado (10°C-30°C)",
+      "presentacion": "2500 mL",
+      "stock": 0.0,
+      "id": 1
+    },
+    {
+      "codigo": "SUB002",
+      "nombre": "Hidróxido de Sodio",
+      "lote": "LOT-2026-002",
+      "unidad": "Kilogramo",
+      "ubicacion": "Estante B",
+      "proveedor": "Proveedor B",
+      "fecha_vencimiento": "2028-06-15",
+      "condicion_almacenamiento": "(+15°C  a +25°C y +/- 60HR)",
+      "presentacion": "1000 g",
+      "stock": 788.0,
+      "id": 2
+    },
+    {
+      "codigo": "SUB003",
+      "nombre": "Etanol Absoluto",
+      "lote": "LOT-2026-003",
+      "unidad": "Litro",
+      "ubicacion": "Estante A",
+      "proveedor": "Proveedor A",
+      "fecha_vencimiento": "2027-08-05",
+      "condicion_almacenamiento": "Almacenar en un lugar fresco, seco y ventilado (entre 10°C Y 30°C +/- 60HR)",
+      "presentacion": "1000 mL",
+      "stock": 3800.0,
+      "id": 3
+    },
+    {
+      "codigo": "SUB004",
+      "nombre": "Ácido Sulfúrico",
+      "lote": "LOT-2026-004",
+      "unidad": "Litro",
+      "ubicacion": "Estante B",
+      "proveedor": "Proveedor B",
+      "fecha_vencimiento": "2028-02-20",
+      "condicion_almacenamiento": "Bien cerrado, seco y ventilado (Temperatura de +2°C a +30°C y +/- 60HR)",
+      "presentacion": "2500 mL",
+      "stock": 6684.0,
+      "id": 4
+    },
+    {
+      "codigo": "SUB005",
+      "nombre": "Cloruro de Sodio",
+      "lote": "LOT-2026-005",
+      "unidad": "Kilogramo",
+      "ubicacion": "Estante A",
+      "proveedor": "Proveedor A",
+      "fecha_vencimiento": "2029-03-01",
+      "condicion_almacenamiento": "(+15°C  a +25°C y +/- 60HR)",
+      "presentacion": "500 g",
+      "stock": 2150.0,
+      "id": 5
+    },
+    {
+      "codigo": "SUB003",
+      "nombre": "Etanol Absoluto",
+      "lote": "LOT-2026-007",
+      "unidad": "Litro",
+      "ubicacion": "Refrigeración",
+      "proveedor": "Proveedor B",
+      "fecha_vencimiento": "2027-06-15",
+      "condicion_almacenamiento": "Almacenar en un lugar fresco, seco y ventilado (entre 10°C Y 30°C +/- 60HR)",
+      "presentacion": "1000 mL",
+      "stock": 2900.0,
+      "id": 6
+    },
+    {
+      "codigo": "SUB002",
+      "nombre": "Hidróxido de Sodio",
+      "lote": "aaaa",
+      "unidad": "Kilogramo",
+      "ubicacion": "Estante B",
+      "proveedor": "Proveedor B",
+      "fecha_vencimiento": "2026-03-25",
+      "condicion_almacenamiento": "(-20°C)",
+      "presentacion": "12",
+      "stock": 0.0,
+      "id": 7
+    },
+    {
+      "codigo": "SUB001",
+      "nombre": "Ácido Clorhídrico",
+      "lote": "Lote1234",
+      "unidad": "Litro",
+      "ubicacion": "Estante B",
+      "proveedor": "Proveedor A",
+      "fecha_vencimiento": "2030-04-09",
+      "condicion_almacenamiento": "(+15°C  a +25°C y +/- 60HR)",
+      "presentacion": "100",
+      "stock": 500.0,
+      "id": 8
+    }
+  ]
+}

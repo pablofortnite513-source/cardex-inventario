@@ -1,5 +1,5 @@
 {
-  "proveedores": [
+  "maestrasProveedores": [
     {
       "id": 1,
       "nombre": "Proveedor A",

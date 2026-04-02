@@ -2,6 +2,72 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
+
+def sync_inventario(entradas_file, salidas_file, inventario_file):
+    """Recalcula el inventario disponible a partir de entradas y salidas no anuladas."""
+    entradas = DataHandler.get_all(entradas_file, "entradas")
+    salidas = DataHandler.get_all(salidas_file, "salidas")
+
+    stock: Dict[str, Dict[str, Any]] = {}
+
+    for e in entradas:
+        if e.get("anulado"):
+            continue
+        key = (e.get("codigo", ""), e.get("lote", ""))
+        total = 0
+        try:
+            total = float(e.get("total", 0))
+        except (ValueError, TypeError):
+            total = 0
+        if key not in stock:
+            stock[key] = {
+                "codigo": e.get("codigo", ""),
+                "nombre": e.get("nombre", ""),
+                "lote": e.get("lote", ""),
+                "unidad": e.get("unidad", ""),
+                "ubicacion": e.get("ubicacion", ""),
+                "proveedor": e.get("proveedor", ""),
+                "fecha_vencimiento": e.get("fecha_vencimiento", ""),
+                "condicion_almacenamiento": e.get("condicion_almacenamiento", ""),
+                "presentacion": e.get("presentacion", ""),
+                "stock": 0,
+            }
+        stock[key]["stock"] += total
+
+    for s in salidas:
+        if s.get("anulado"):
+            continue
+        key = (s.get("codigo", ""), s.get("lote", ""))
+        cant = 0
+        try:
+            cant = float(s.get("cantidad", 0))
+        except (ValueError, TypeError):
+            cant = 0
+        if key in stock:
+            stock[key]["stock"] -= cant
+
+    inventario = []
+    idx = 1
+    for info in stock.values():
+        rec = dict(info)
+        rec["id"] = idx
+        rec["stock"] = round(rec["stock"], 4)
+        inventario.append(rec)
+        idx += 1
+
+    DataHandler.save_json(inventario_file, {"inventario": inventario})
+
+
+def remove_lote_from_inventario(inventario_file, codigo: str, lote: str) -> bool:
+    """Elimina un lote específico del inventario."""
+    data = DataHandler.load_json(inventario_file)
+    records = data.get("inventario", [])
+    filtered = [r for r in records if not (r.get("codigo") == codigo and r.get("lote") == lote)]
+    if len(filtered) == len(records):
+        return False
+    data["inventario"] = filtered
+    return DataHandler.save_json(inventario_file, data)
+
 class DataHandler:
     """Manejo de archivos JSON para maestras e inventario"""
     

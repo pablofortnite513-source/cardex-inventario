@@ -1,5 +1,5 @@
 {
-  "almacenes": [
+  "maestrasAlmacenes": [
     {
       "id": 1,
       "nombre": "Almacen Central"
