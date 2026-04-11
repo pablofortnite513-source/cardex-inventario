@@ -2,8 +2,27 @@ import os
 import tkinter as tk
 from tkinter import Image, filedialog, messagebox, ttk
 
-from config.config import COLORS, ENTRADAS_FILE, IMAGES_PATH, SUSTANCIAS_FILE
-from utils.data_handler import DataHandler
+from config.config import (
+    COLORS,
+    CONDICIONES_FILE,
+    ENTRADAS_FILE,
+    IMAGES_PATH,
+    PROVEEDORES_FILE,
+    SUSTANCIAS_FILE,
+    UBICACIONES_FILE,
+    UBICACIONES_USO_FILE,
+    UNIDADES_FILE,
+)
+from utils.data_handler import (
+    DataHandler,
+    Lookups,
+    build_location_indexes,
+    build_substance_indexes,
+    location_name,
+    substance_code,
+    substance_from_code,
+    substance_name,
+)
 
 
 def mm_to_px(mm: float, dpi: int = 300) -> int:
@@ -73,6 +92,21 @@ class EtiquetasWindow:
 
         self.tree: ttk.Treeview | None = None
         self.codigo_combo: ttk.Combobox | None = None
+        # Load master catalogs for ID resolution
+        unidades_cat = DataHandler.load_json(UNIDADES_FILE).get("maestrasUnidades", [])
+        proveedores_cat = DataHandler.load_json(PROVEEDORES_FILE).get("maestrasProveedores", [])
+        condiciones_cat = DataHandler.load_json(CONDICIONES_FILE).get("maestrasCondicionesAlmacenamiento", [])
+        sustancias_cat = DataHandler.load_json(SUSTANCIAS_FILE).get("maestrasSustancias", [])
+        ubicaciones_cat = DataHandler.load_json(UBICACIONES_FILE).get("maestrasUbicaciones", [])
+        ubicaciones_uso_cat = DataHandler.load_json(UBICACIONES_USO_FILE).get("maestrasUbicacionesUso", [])
+        self.lkp = Lookups(
+            unidades=unidades_cat,
+            proveedores=proveedores_cat,
+            condiciones=condiciones_cat,
+        )
+        self.sustancias_by_id, self.sustancias_by_code = build_substance_indexes(sustancias_cat)
+        self.locations_by_key, _ = build_location_indexes(ubicaciones_cat, ubicaciones_uso_cat)
+
 
         self._build_ui()
         self._bind_events()
@@ -87,19 +121,28 @@ class EtiquetasWindow:
 
     def _available_codes(self) -> list[str]:
         entradas = self._get_entradas()
-        codes = {str(r.get("codigo", "")).strip() for r in entradas if str(r.get("codigo", "")).strip()}
+        active_codes = {
+            str(s.get("codigo", "")).strip()
+            for s in self._get_sustancias()
+            if str(s.get("codigo", "")).strip() and bool(s.get("habilitada", True))
+        }
+        codes = {
+            substance_code(r, self.sustancias_by_id)
+            for r in entradas
+            if substance_code(r, self.sustancias_by_id) in active_codes
+        }
         return sorted(codes)
 
     def _find_sustancia_cas(self, codigo: str) -> str:
-        for s in self._get_sustancias():
-            if str(s.get("codigo", "")).strip() == codigo:
-                return str(s.get("codigo_cas", ""))
-        return ""
+        selected = substance_from_code(self.sustancias_by_code, codigo)
+        return str(selected.get("codigo_cas", "")) if selected else ""
 
     def _entries_for_code(self, codigo: str) -> list[dict]:
+        selected = substance_from_code(self.sustancias_by_code, codigo)
+        substance_key = selected.get("id") if selected else codigo
         return [
             r for r in self._get_entradas()
-            if str(r.get("codigo", "")).strip() == codigo
+            if r.get("id_sustancia", r.get("codigo", "")) == substance_key
         ]
 
     # ── UI ─────────────────────────────────────────────────────
@@ -249,7 +292,7 @@ class EtiquetasWindow:
 
         entries = self._entries_for_code(codigo)
         if entries:
-            self.nombre_var.set(str(entries[0].get("nombre", "")))
+            self.nombre_var.set(substance_name(entries[0], self.sustancias_by_id))
         else:
             self.nombre_var.set("")
 
@@ -267,13 +310,13 @@ class EtiquetasWindow:
                 rec.get("lote", ""),
                 rec.get("fecha", ""),
                 rec.get("fecha_vencimiento", ""),
-                rec.get("unidad", ""),
+                self.lkp.to_name("unidades", rec.get("id_unidad")) or rec.get("unidad", ""),
                 rec.get("concentracion", ""),
                 rec.get("presentacion", ""),
-                rec.get("proveedor", rec.get("fabricante", "")),
+                self.lkp.to_name("proveedores", rec.get("id_proveedor")) or rec.get("proveedor", rec.get("fabricante", "")),
                 cas,
-                rec.get("ubicacion", ""),
-                rec.get("condicion_almacenamiento", ""),
+                location_name(rec, self.locations_by_key),
+                self.lkp.to_name("condiciones", rec.get("id_condicion_almacenamiento")) or rec.get("condicion_almacenamiento", ""),
             )
             self.tree.insert("", tk.END, values=row)
 

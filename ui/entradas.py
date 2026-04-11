@@ -19,14 +19,26 @@ from config.config import (
     UNIDADES_FILE,
 )
 from ui.bitacora import registrar_bitacora
+from ui.input_behaviors import bind_code_combo_autofill, bind_uppercase
 from ui.styles import apply_styles_to_window, make_required_label, apply_focus_bindings, build_header
-from utils.data_handler import DataHandler, sync_inventario
+from utils.data_handler import (
+    DataHandler,
+    Lookups,
+    build_location_indexes,
+    build_substance_indexes,
+    location_name,
+    substance_code,
+    substance_code_system,
+    substance_from_code,
+    substance_name,
+    sync_inventario,
+)
 
 
 class EntryFormWindow:
     """Formulario de entradas – lógica alineada al Excel Kardex."""
 
-    def __init__(self, parent: tk.Tk, usuario: str = "", rol: str = ""):
+    def __init__(self, parent: tk.Tk, usuario: str = "", rol: str = "", prefill: dict | None = None):
         self.window = tk.Toplevel(parent)
         self.window.title("Sistema de Gestion - Entradas")
         self.window.geometry("1280x860")
@@ -38,13 +50,14 @@ class EntryFormWindow:
         self.catalogs: dict[str, list[dict]] = {}
 
         self.tipo_entrada_var = tk.StringVar()
-        self.fecha_entrada_var = tk.StringVar(value=date.today().strftime("%Y-%m-%d"))
+        self.fecha_entrada_var = tk.StringVar()
         self.codigo_var = tk.StringVar()
         self.nombre_var = tk.StringVar()
         self.lote_var = tk.StringVar()
 
         self.costo_unitario_var = tk.StringVar()
         self.costo_total_var = tk.StringVar(value="0")
+        self.factura_var = tk.StringVar()
 
         self.cantidad_var = tk.StringVar()
         self.presentacion_var = tk.StringVar()
@@ -74,10 +87,22 @@ class EntryFormWindow:
         self.history_tree: ttk.Treeview | None = None
         self.save_btn: tk.Button | None = None
         self.costo_unitario_entry: tk.Entry | None = None
+        self._combo_sources: dict[str, list[str]] = {}
+        self._combo_strict: set[str] = set()
+        self._combo_tooltip: tk.Toplevel | None = None
+        self._combo_tooltip_label: tk.Label | None = None
+        self._tooltip_bound_combos: set[str] = set()
+        self.fecha_entrada_de: DateEntry | None = None
+        self.fecha_venc_de: DateEntry | None = None
+        self.fecha_doc_de: DateEntry | None = None
 
+        self._prefill = prefill or {}
         self._load_catalogs()
         self._build_ui()
+        self.window.after_idle(self._clear_default_dates)
         self._bind_events()
+        if self._prefill:
+            self._apply_prefill()
 
     def _mb_showerror(self, *args, **kwargs):
         kwargs.setdefault("parent", self.window)
@@ -115,10 +140,24 @@ class EntryFormWindow:
             "condiciones": condiciones,
         }
 
+        self.sustancias_by_id, self.sustancias_by_code = build_substance_indexes(sustancias)
+        self.locations_by_key, self.location_by_name = build_location_indexes(ubicaciones, ubicaciones_uso)
+
+        self.lkp = Lookups(
+            tipos_entrada=tipos,
+            unidades=unidades,
+            proveedores=proveedores,
+            condiciones=condiciones,
+        )
+
     # ── UI ─────────────────────────────────────────────────────
 
     def _on_mousewheel(self, event) -> None:
-        self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        try:
+            if self._canvas.winfo_exists():
+                self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        except tk.TclError:
+            pass
 
     def _build_ui(self) -> None:
         outer = tk.Frame(self.window, bg="white", bd=1, relief="solid")
@@ -154,7 +193,7 @@ class EntryFormWindow:
             [x.get("nombre", "") for x in self.catalogs["tipos"] if x.get("nombre")], 0, 0,
             required=True,
         )
-        self._add_date_entry(general, "Fecha Entrada", self.fecha_entrada_var, 0, 1, required=True)
+        self.fecha_entrada_de = self._add_date_entry(general, "Fecha Entrada", self.fecha_entrada_var, 0, 1, required=True, allow_past=False)
         self.codigo_combo = self._add_combo(
             general, "Codigo", self.codigo_var, self._sustancia_codes(), 0, 2,
             required=True,
@@ -163,11 +202,12 @@ class EntryFormWindow:
         self._add_entry(general, "Nombre del Producto", self.nombre_var, 1, 0, readonly=True, col_span=2)
         self._add_entry(general, "Codigo Contable", self.codigo_contable_var, 1, 2, readonly=True)
 
-        costos = tk.LabelFrame(top, text="Costos", bg="white", fg="#1F4F8A", font=("Segoe UI", 11, "bold"))
+        costos = tk.LabelFrame(top, text="Costos y Facturación", bg="white", fg="#1F4F8A", font=("Segoe UI", 11, "bold"))
         costos.grid(row=0, column=1, sticky="nsew")
 
         self.costo_unitario_entry = self._add_entry(costos, "Costo Unitario", self.costo_unitario_var, 0, 0)
         self._add_entry(costos, "Costo Total", self.costo_total_var, 0, 1, readonly=True)
+        self._add_entry(costos, "Factura", self.factura_var, 1, 0, col_span=2)
 
         # ── fila media: Detalles + Documentación ──
         middle = tk.Frame(wrapper, bg="white")
@@ -204,10 +244,10 @@ class EntryFormWindow:
 
         docs_grid = tk.Frame(docs, bg="white")
         docs_grid.pack(fill="x", padx=10, pady=(0, 10))
-        self._add_date_entry(docs_grid, "Fecha Vencimiento", self.fecha_venc_var, 0, 0)
-        self._add_date_entry(docs_grid, "Fecha Documento", self.fecha_doc_var, 0, 1)
+        self.fecha_venc_de = self._add_date_entry(docs_grid, "Fecha Vencimiento", self.fecha_venc_var, 0, 0, allow_past=False)
+        self.fecha_doc_de = self._add_date_entry(docs_grid, "Fecha Documento", self.fecha_doc_var, 0, 1, allow_past=True)
         # Vigencia Documento = fecha (readonly, calculada como Fecha Doc + 5 años)
-        self._add_entry(docs_grid, "Vigencia Documento", self.vigencia_doc_var, 0, 2, readonly=True)
+        self._add_entry(docs_grid, "Vig. Documento", self.vigencia_doc_var, 0, 2, readonly=True)
 
         # ── Almacenamiento y Observaciones ──
         storage = tk.LabelFrame(wrapper, text="Almacenamiento y Observaciones", bg="white", fg="#1F4F8A", font=("Segoe UI", 11, "bold"))
@@ -224,12 +264,20 @@ class EntryFormWindow:
             row_storage, "Condicion de Almacenamiento", self.condicion_var,
             [x.get("nombre", "") for x in self.catalogs["condiciones"] if x.get("nombre")], 0, 1,
         )
+        if self.condicion_combo is not None:
+            self._bind_combo_tooltip_fallback(self.condicion_combo)
+            self.condicion_combo.bind(
+                "<Button-1>",
+                lambda _e, c=self.condicion_combo: self.window.after(80, lambda: self._attach_dropdown_tooltip(c)),
+                add="+",
+            )
 
         obs_frame = tk.Frame(row_storage, bg="white")
         obs_frame.grid(row=0, column=2, sticky="nsew", padx=8)
         tk.Label(obs_frame, text="Observaciones", bg="white").pack(anchor="w")
         self.observaciones_text = tk.Text(obs_frame, height=3)
         self.observaciones_text.pack(fill="x", pady=(4, 0))
+        bind_uppercase(self.observaciones_text)
 
         row_storage.columnconfigure(0, weight=1)
         row_storage.columnconfigure(1, weight=2)
@@ -338,6 +386,7 @@ class EntryFormWindow:
     def _add_date_entry(
         self, parent: tk.Widget, label: str, variable: tk.StringVar,
         row: int, col: int, col_span: int = 1, required: bool = False,
+        allow_past: bool = True,
     ) -> DateEntry:
         frame = tk.Frame(parent, bg="white")
         frame.grid(row=row, column=col, columnspan=col_span, padx=8, pady=8, sticky="ew")
@@ -345,11 +394,22 @@ class EntryFormWindow:
             make_required_label(frame, label).pack(anchor="w")
         else:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
-        de = DateEntry(
-            frame, textvariable=variable, date_pattern="yyyy-mm-dd",
-            width=18, background=COLORS["primary"], foreground="white",
-            headersbackground=COLORS["primary"], headersforeground="white",
-        )
+        kwargs = {
+        "textvariable": variable,
+        "date_pattern": "yyyy-mm-dd",
+        "width": 18,
+        "background": COLORS["primary"],
+        "foreground": "white",
+        "headersbackground": COLORS["primary"],
+        "headersforeground": "white",
+        }
+
+        # 👇 SOLO bloquear si no permite pasado
+        if not allow_past:
+            kwargs["mindate"] = date.today()
+
+        de = DateEntry(frame, **kwargs)
+
         de.pack(fill="x", pady=(4, 0))
         if not variable.get().strip():
             de.delete(0, tk.END)
@@ -386,16 +446,159 @@ class EntryFormWindow:
             make_required_label(frame, label).pack(anchor="w")
         else:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
-        combo = ttk.Combobox(frame, textvariable=variable, values=options, state="readonly")
+        combo = ttk.Combobox(frame, textvariable=variable, values=options, state="normal")
         combo.pack(fill="x", pady=(4, 0))
+        self._register_filterable_combo(combo, options, strict=True)
         parent.columnconfigure(col, weight=1)
         return combo
+
+    def _register_filterable_combo(self, combo: ttk.Combobox, options: list[str], strict: bool = True) -> None:
+        source = [str(opt).strip() for opt in options if str(opt).strip()]
+        key = str(combo)
+        self._combo_sources[key] = source
+        if strict:
+            self._combo_strict.add(key)
+        combo["values"] = source
+        combo.bind("<KeyRelease>", self._on_combo_key_release, add="+")
+        combo.bind("<FocusOut>", self._on_combo_focus_out, add="+")
+        combo.bind("<Leave>", self._hide_combo_tooltip, add="+")
+    
+    def _set_combo_source(self, combo: ttk.Combobox, options: list[str]) -> None:
+        source = [str(opt).strip() for opt in options if str(opt).strip()]
+        self._combo_sources[str(combo)] = source
+        combo["values"] = source
+
+    def _is_combo_dropdown_open(self, combo: ttk.Combobox) -> bool:
+        try:
+            popdown = combo.tk.call("ttk::combobox::PopdownWindow", str(combo))
+            popup = combo.nametowidget(popdown)
+            return bool(popup.winfo_ismapped())
+        except Exception:
+            return False
+
+    def _on_combo_key_release(self, event: tk.Event) -> None:
+        """Solo permite navegación normal del combo, no filtro."""
+        combo = event.widget
+        if not isinstance(combo, ttk.Combobox):
+            return
+
+        # Permitir navegación normal sin intervenir
+        if event.keysym in {"Up", "Down", "Page_Up", "Page_Down"}:
+            return
+
+    def _clear_default_dates(self) -> None:
+        """Limpia fechas por defecto en DateEntry."""
+        for var, widget in (
+            (self.fecha_entrada_var, self.fecha_entrada_de),
+            (self.fecha_venc_var, self.fecha_venc_de),
+            (self.fecha_doc_var, self.fecha_doc_de),
+        ):
+            var.set("")
+            if widget is not None:
+                try:
+                    widget.delete(0, tk.END)
+                except Exception:
+                    pass
+
+    def _on_combo_focus_out(self, event: tk.Event) -> None:
+        combo = event.widget
+        if not isinstance(combo, ttk.Combobox):
+            return
+
+        source = self._combo_sources.get(str(combo), [])
+        #current = combo.get().strip()
+        #if current:
+            #exact = next((opt for opt in source if opt.lower() == current.lower()), None)
+            #if exact is not None:
+                #combo.set(exact)
+
+        combo["values"] = source
+
+    def _show_combo_tooltip(self, text: str, x_root: int, y_root: int) -> None:
+        clean = (text or "").strip()
+        if not clean:
+            self._hide_combo_tooltip()
+            return
+
+        if self._combo_tooltip is None or not self._combo_tooltip.winfo_exists():
+            self._combo_tooltip = tk.Toplevel(self.window)
+            self._combo_tooltip.withdraw()
+            self._combo_tooltip.overrideredirect(True)
+            self._combo_tooltip.attributes("-topmost", True)
+            self._combo_tooltip_label = tk.Label(
+                self._combo_tooltip,
+                text="",
+                justify="left",
+                bg="#FFF8C6",
+                fg="#222222",
+                relief="solid",
+                bd=1,
+                padx=8,
+                pady=6,
+                wraplength=520,
+                font=("Segoe UI", 9),
+            )
+            self._combo_tooltip_label.pack(fill="both", expand=True)
+
+        if self._combo_tooltip_label is not None:
+            self._combo_tooltip_label.config(text=clean)
+        self._combo_tooltip.geometry(f"+{x_root + 14}+{y_root + 18}")
+        self._combo_tooltip.deiconify()
+
+    def _hide_combo_tooltip(self, _event: tk.Event | None = None) -> None:
+        if self._combo_tooltip is not None and self._combo_tooltip.winfo_exists():
+            self._combo_tooltip.withdraw()
+
+    def _attach_dropdown_tooltip(self, combo: ttk.Combobox) -> None:
+        key = str(combo)
+        if key in self._tooltip_bound_combos:
+            return
+
+        try:
+            popdown = combo.tk.call("ttk::combobox::PopdownWindow", str(combo))
+            listbox = combo.nametowidget(f"{popdown}.f.l")
+        except Exception:
+            if self.window.winfo_exists():
+                self.window.after(140, lambda c=combo: self._attach_dropdown_tooltip(c))
+            return
+
+        def _on_motion(event: tk.Event) -> None:
+            try:
+                idx = listbox.nearest(event.y)
+                value = listbox.get(idx)
+            except Exception:
+                self._hide_combo_tooltip()
+                return
+            self._show_combo_tooltip(value, event.x_root, event.y_root)
+
+        listbox.bind("<Motion>", _on_motion, add="+")
+        listbox.bind("<Leave>", self._hide_combo_tooltip, add="+")
+        listbox.bind("<ButtonRelease-1>", self._hide_combo_tooltip, add="+")
+        combo.bind("<Escape>", self._hide_combo_tooltip, add="+")
+        combo.bind("<FocusOut>", self._hide_combo_tooltip, add="+")
+        self._tooltip_bound_combos.add(key)
+
+    def _bind_combo_tooltip_fallback(self, combo: ttk.Combobox) -> None:
+        def _on_motion(event: tk.Event) -> None:
+            value = combo.get().strip()
+            if len(value) <= 36:
+                self._hide_combo_tooltip()
+                return
+            self._show_combo_tooltip(value, event.x_root, event.y_root)
+
+        combo.bind("<Motion>", _on_motion, add="+")
+        combo.bind("<Leave>", self._hide_combo_tooltip, add="+")
 
     # ── bindings ───────────────────────────────────────────────
 
     def _bind_events(self) -> None:
         if self.codigo_combo is not None:
-            self.codigo_combo.bind("<<ComboboxSelected>>", self._on_codigo_selected)
+            bind_code_combo_autofill(
+                self.codigo_combo,
+                lambda: self._combo_sources.get(str(self.codigo_combo), self._sustancia_codes()),
+                self._set_codigo_data,
+                self._clear_codigo_data,
+            )
         self.cantidad_var.trace_add("write", lambda *_: self._recalculate_costo_total())
         self.costo_unitario_var.trace_add("write", lambda *_: self._recalculate_costo_total())
         self.fecha_doc_var.trace_add("write", lambda *_: self._recalculate_vigencia())
@@ -411,33 +614,98 @@ class EntryFormWindow:
         if self.costo_unitario_entry is not None:
             self.costo_unitario_entry.bind("<FocusIn>", lambda _event: self._strip_currency_display(self.costo_unitario_var))
             self.costo_unitario_entry.bind("<FocusOut>", lambda _event: self._format_currency(self.costo_unitario_var))
+        bind_uppercase(self.factura_var)
+        bind_uppercase(self.lote_var)
+
+    def _set_codigo_data(self, code: str) -> None:
+        self.codigo_var.set(code)
+        self._on_codigo_selected(None)
+
+    def _clear_codigo_data(self) -> None:
+        self.nombre_var.set("")
+        self.codigo_contable_var.set("")
+        self.densidad_var.set("")
+        self.concentracion_var.set("")
+        self.presentacion_var.set("")
+
+    def _apply_prefill(self) -> None:
+        """Pre-llena el formulario con datos provenientes de la lista de chequeo."""
+        p = self._prefill
+        if p.get("codigo"):
+            self.codigo_var.set(p["codigo"])
+            self._on_codigo_selected(None)
+        if p.get("lote"):
+            self.lote_var.set(p["lote"])
+        if p.get("cantidad"):
+            self.cantidad_var.set(p["cantidad"])
+        if p.get("proveedor"):
+            self.proveedor_var.set(p["proveedor"])
 
     # ── lógica de sustancias ───────────────────────────────────
 
     def _sustancia_codes(self) -> list[str]:
-        codes = [str(item.get("codigo", "")).strip() for item in self.catalogs["sustancias"]]
+        codes = [
+            str(item.get("codigo", "")).strip()
+            for item in self.catalogs["sustancias"]
+            if bool(item.get("habilitada", True))
+        ]
         return sorted([c for c in codes if c])
 
     def _find_sustancia_by_code(self, code: str) -> dict | None:
-        for item in self.catalogs["sustancias"]:
-            if str(item.get("codigo", "")).strip() == code:
-                return item
-        return None
+        return substance_from_code(self.sustancias_by_code, code)
 
-    def _on_codigo_selected(self, _event: tk.Event) -> None:
-        selected = self._find_sustancia_by_code(self.codigo_var.get().strip())
+    def _selected_location_fields(self) -> tuple[str, int | None]:
+        selected = self.ubicacion_var.get().strip()
         if not selected:
+            return "", None
+        for key, record in self.locations_by_key.items():
+            if str(record.get("nombre", "")).strip() == selected:
+                return key[0], key[1]
+        return "", None
+
+    def _on_codigo_selected(self, _event: tk.Event | None) -> None:
+        """Cuando se selecciona un código, autocompeta todos los campos relacionados."""
+        code = self.codigo_var.get().strip()
+        if not code:
             self.nombre_var.set("")
+            self.codigo_contable_var.set("")
+            self.densidad_var.set("")
+            self.concentracion_var.set("")
+            self.presentacion_var.set("")
             return
 
+        selected = self._find_sustancia_by_code(code)
+        if not selected:
+            self.nombre_var.set("")
+            self.codigo_contable_var.set("")
+            self.densidad_var.set("")
+            self.concentracion_var.set("")
+            self.presentacion_var.set("")
+            return
+
+        # Autocompletar nombre y código contable
         self.nombre_var.set(str(selected.get("nombre", "")))
         self.codigo_contable_var.set(str(selected.get("codigo_sistema", "")))
-        if not self.concentracion_var.get().strip():
-            self.concentracion_var.set(str(selected.get("concentracion", "")))
-        if not self.densidad_var.get().strip():
-            self.densidad_var.set(str(selected.get("densidad", "")))
+        
+        # Autocompletar unidad si no está definida
         if not self.unidad_var.get().strip():
-            self.unidad_var.set(str(selected.get("unidad", "")))
+            self.unidad_var.set(
+                self.lkp.to_name("unidades", selected.get("id_unidad"))
+                or str(selected.get("unidad", ""))
+            )
+        
+        # Autocompletar densidad, concentración y presentación desde la sustancia
+        density = str(selected.get("densidad", "")).strip()
+        if density:
+            self.densidad_var.set(density)
+        
+        conc = str(selected.get("concentracion", "")).strip()
+        if conc:
+            self.concentracion_var.set(conc)
+        
+        pres = str(selected.get("presentacion", "")).strip()
+        if pres:
+            self.presentacion_var.set(pres)
 
     # ── parseo ─────────────────────────────────────────────────
 
@@ -556,11 +824,11 @@ class EntryFormWindow:
             row = (
                 rec.get("id", ""),
                 rec.get("fecha", ""),
-                rec.get("codigo", ""),
-                rec.get("nombre", ""),
+                substance_code(rec, self.sustancias_by_id),
+                substance_name(rec, self.sustancias_by_id),
                 rec.get("lote", ""),
                 rec.get("total", ""),
-                rec.get("unidad", ""),
+                self.lkp.to_name("unidades", rec.get("id_unidad")) or rec.get("unidad", ""),
                 estado,
             )
             tag = "anulado" if anulado else ""
@@ -580,7 +848,7 @@ class EntryFormWindow:
         for rec in reversed(records):
             if fecha and str(rec.get("fecha", "")).strip() != fecha:
                 continue
-            if codigo and str(rec.get("codigo", "")).strip() != codigo:
+            if codigo and substance_code(rec, self.sustancias_by_id) != codigo:
                 continue
             if lote and str(rec.get("lote", "")).strip() != lote:
                 continue
@@ -589,11 +857,11 @@ class EntryFormWindow:
             row = (
                 rec.get("id", ""),
                 rec.get("fecha", ""),
-                rec.get("codigo", ""),
-                rec.get("nombre", ""),
+                substance_code(rec, self.sustancias_by_id),
+                substance_name(rec, self.sustancias_by_id),
                 rec.get("lote", ""),
                 rec.get("total", ""),
-                rec.get("unidad", ""),
+                self.lkp.to_name("unidades", rec.get("id_unidad")) or rec.get("unidad", ""),
                 estado,
             )
             tag = "anulado" if anulado else ""
@@ -627,30 +895,43 @@ class EntryFormWindow:
 
         # Cargar datos en formulario
         self.editing_id = rec_id
-        self.tipo_entrada_var.set(record.get("tipo_entrada", ""))
+        self.tipo_entrada_var.set(
+            self.lkp.to_name("tipos_entrada", record.get("id_tipo_entrada"))
+            or record.get("tipo_entrada", "")
+        )
         self.fecha_entrada_var.set(record.get("fecha", ""))
-        self.codigo_var.set(record.get("codigo", ""))
-        self.nombre_var.set(record.get("nombre", ""))
-        self.codigo_contable_var.set(record.get("codigo_contable", ""))
+        self.codigo_var.set(substance_code(record, self.sustancias_by_id))
+        self.nombre_var.set(substance_name(record, self.sustancias_by_id))
+        self.codigo_contable_var.set(substance_code_system(record, self.sustancias_by_id))
         self.lote_var.set(record.get("lote", ""))
         self.cantidad_var.set(str(record.get("cantidad", "")))
         self.presentacion_var.set(record.get("presentacion", ""))
         self.total_var.set(str(record.get("total", "")))
-        self.unidad_var.set(record.get("unidad", ""))
+        self.unidad_var.set(
+            self.lkp.to_name("unidades", record.get("id_unidad"))
+            or record.get("unidad", "")
+        )
         self.concentracion_var.set(record.get("concentracion", ""))
         self.densidad_var.set(record.get("densidad", ""))
-        self.proveedor_var.set(record.get("proveedor", ""))
+        self.proveedor_var.set(
+            self.lkp.to_name("proveedores", record.get("id_proveedor"))
+            or record.get("proveedor", "")
+        )
         self.costo_unitario_var.set(record.get("costo_unitario", ""))
         self._format_currency(self.costo_unitario_var)
         self.costo_total_var.set(record.get("costo_total", ""))
         self._format_currency(self.costo_total_var)
+        self.factura_var.set(str(record.get("factura", "")))
         self.certificado_var.set(record.get("certificado", False))
         self.msds_var.set(record.get("msds", False))
         self.fecha_venc_var.set(record.get("fecha_vencimiento", ""))
         self.fecha_doc_var.set(record.get("fecha_documento", ""))
         self.vigencia_doc_var.set(record.get("vigencia_documento", ""))
-        self.ubicacion_var.set(record.get("ubicacion", ""))
-        self.condicion_var.set(record.get("condicion_almacenamiento", ""))
+        self.ubicacion_var.set(location_name(record, self.locations_by_key))
+        self.condicion_var.set(
+            self.lkp.to_name("condiciones", record.get("id_condicion_almacenamiento"))
+            or record.get("condicion_almacenamiento", "")
+        )
         if self.observaciones_text is not None:
             self.observaciones_text.delete("1.0", tk.END)
             self.observaciones_text.insert("1.0", record.get("observaciones", ""))
@@ -678,9 +959,10 @@ class EntryFormWindow:
             return
 
         # Verificar que anular no deje stock negativo
-        codigo = str(record.get("codigo", "")).strip()
+        codigo = substance_code(record, self.sustancias_by_id).strip()
         lote = str(record.get("lote", "")).strip()
         total_rec = float(record.get("total", 0))
+        id_sustancia = record.get("id_sustancia")
 
         salidas = DataHandler.get_all(SALIDAS_FILE, "salidas")
         entradas = DataHandler.get_all(ENTRADAS_FILE, "entradas")
@@ -688,14 +970,14 @@ class EntryFormWindow:
         total_entrada = sum(
             float(r.get("total", 0))
             for r in entradas
-            if str(r.get("codigo", "")).strip() == codigo
+            if r.get("id_sustancia", r.get("codigo", "")) == (id_sustancia if id_sustancia is not None else codigo)
             and str(r.get("lote", "")).strip() == lote
             and not r.get("anulado", False)
         )
         total_salida = sum(
             float(r.get("cantidad", 0))
             for r in salidas
-            if str(r.get("codigo", "")).strip() == codigo
+            if r.get("id_sustancia", r.get("codigo", "")) == (id_sustancia if id_sustancia is not None else codigo)
             and str(r.get("lote", "")).strip() == lote
             and not r.get("anulado", False)
         )
@@ -757,12 +1039,13 @@ class EntryFormWindow:
         if self.save_btn is not None:
             self.save_btn.config(text="Guardar")
         self.tipo_entrada_var.set("")
-        self.fecha_entrada_var.set(date.today().strftime("%Y-%m-%d"))
+        self.fecha_entrada_var.set("")
         self.codigo_var.set("")
         self.nombre_var.set("")
         self.lote_var.set("")
         self.costo_unitario_var.set("")
         self.costo_total_var.set("$0.00")
+        self.factura_var.set("")
         self.cantidad_var.set("")
         self.presentacion_var.set("")
         self.total_var.set("")
@@ -817,7 +1100,7 @@ class EntryFormWindow:
 
         # Validar que el producto no esté vencido
         fecha_venc = self._parse_date(self.fecha_venc_var.get())
-        if fecha_venc is not None and fecha_venc <= date.today():
+        if fecha_venc is not None and fecha_venc < date.today():
             self._mb_showerror(
                 "Producto Vencido",
                 f"No se puede ingresar un producto vencido.\n"
@@ -841,29 +1124,36 @@ class EntryFormWindow:
             self._mb_showerror("Validacion", "Costo Total no es valido")
             return
 
+        selected_sustancia = self._find_sustancia_by_code(self.codigo_var.get().strip())
+        if selected_sustancia is None:
+            self._mb_showerror("Validacion", "La sustancia seleccionada no existe en la maestra")
+            return
+
+        ubicacion_tipo, id_ubicacion = self._selected_location_fields()
+
         record = {
-            "tipo_entrada": self.tipo_entrada_var.get().strip(),
+            "id_tipo_entrada": self.lkp.to_id("tipos_entrada", self.tipo_entrada_var.get().strip()),
             "fecha": self.fecha_entrada_var.get().strip(),
-            "codigo": self.codigo_var.get().strip(),
-            "nombre": self.nombre_var.get().strip(),
-            "codigo_contable": self.codigo_contable_var.get().strip(),
+            "id_sustancia": selected_sustancia.get("id"),
             "lote": self.lote_var.get().strip(),
             "cantidad": cantidad,
             "presentacion": self.presentacion_var.get().strip(),
             "total": total,
-            "unidad": self.unidad_var.get().strip(),
-            "proveedor": self.proveedor_var.get().strip(),
+            "id_unidad": self.lkp.to_id("unidades", self.unidad_var.get().strip()),
+            "id_proveedor": self.lkp.to_id("proveedores", self.proveedor_var.get().strip()),
             "concentracion": self.concentracion_var.get().strip(),
             "densidad": self.densidad_var.get().strip(),
             "costo_unitario": "" if not costo_unitario_raw else f"{costo_unitario:.2f}",
             "costo_total": "" if not costo_total_raw else f"{costo_total:.2f}",
+            "factura": self.factura_var.get().strip().upper(),
             "certificado": self.certificado_var.get(),
             "msds": self.msds_var.get(),
             "fecha_vencimiento": self.fecha_venc_var.get().strip(),
             "fecha_documento": self.fecha_doc_var.get().strip(),
             "vigencia_documento": self.vigencia_doc_var.get().strip(),
-            "condicion_almacenamiento": self.condicion_var.get().strip(),
-            "ubicacion": self.ubicacion_var.get().strip(),
+            "id_condicion_almacenamiento": self.lkp.to_id("condiciones", self.condicion_var.get().strip()),
+            "ubicacion_tipo": ubicacion_tipo,
+            "id_ubicacion": id_ubicacion,
             "observaciones": observaciones,
         }
 
@@ -919,7 +1209,7 @@ class EntryFormWindow:
             id_registro=str(record.get("id", "")),
             campo="entrada_completa",
             valor_anterior="",
-            valor_nuevo=f"{record['codigo']} | Lote: {record.get('lote', '')} | Total: {record['total']}",
+            valor_nuevo=f"{self.codigo_var.get().strip()} | Lote: {record.get('lote', '')} | Total: {record['total']}",
         )
 
         self._mb_showinfo("Exito", "Entrada registrada correctamente")

@@ -1,6 +1,8 @@
 import tkinter as tk
 from datetime import datetime
-from tkinter import ttk
+from tkinter import filedialog, messagebox, ttk
+
+from openpyxl import Workbook
 
 from config.config import BITACORA_FILE, COLORS
 from ui.styles import build_header
@@ -76,6 +78,17 @@ class BitacoraWindow:
             padx=16,
             pady=5,
         ).pack(side="left", padx=(8, 0))
+
+        tk.Button(
+            search_row,
+            text="Descargar Excel",
+            command=self._download_excel,
+            bg=COLORS["primary"],
+            fg=COLORS["text_light"],
+            relief="flat",
+            padx=16,
+            pady=5,
+        ).pack(side="right")
 
         columns = (
             "fecha_hora", "usuario", "tipo_operacion",
@@ -203,6 +216,49 @@ class BitacoraWindow:
                 continue
 
             self.tree.insert("", tk.END, values=row)
+
+    def _download_excel(self) -> None:
+        if self.tree is None:
+            return
+
+        rows = [self.tree.item(item, "values") for item in self.tree.get_children()]
+        if not rows:
+            messagebox.showwarning("Bitácora", "No hay datos para exportar", parent=self.window)
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            parent=self.window,
+            title="Guardar bitácora en Excel",
+            defaultextension=".xlsx",
+            filetypes=[("Excel", "*.xlsx")],
+            initialfile=f"bitacora_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+        )
+        if not file_path:
+            return
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Bitacora"
+
+        headers = [
+            "Fecha y Hora",
+            "Usuario",
+            "Tipo Operación",
+            "Hoja",
+            "ID Registro",
+            "Campo",
+            "Valor Anterior",
+            "Valor Nuevo",
+        ]
+        sheet.append(headers)
+        for row in rows:
+            sheet.append(list(row))
+
+        try:
+            workbook.save(file_path)
+            messagebox.showinfo("Bitácora", f"Excel generado correctamente:\n{file_path}", parent=self.window)
+        except Exception as exc:
+            messagebox.showerror("Bitácora", f"No se pudo generar el Excel:\n{exc}", parent=self.window)
 
 
 def registrar_bitacora(

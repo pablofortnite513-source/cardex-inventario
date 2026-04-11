@@ -1,29 +1,34 @@
 {
   "maestrasUnidades": [
     {
-      "id": 1,
-      "codigo": "L",
-      "nombre": "Litro"
+      "codigo": "µl",
+      "nombre": "µL",
+      "id": 6
     },
     {
-      "id": 2,
-      "codigo": "kg",
-      "nombre": "Kilogramo"
+      "codigo": "cilindro",
+      "nombre": "Cilindro",
+      "id": 7
     },
     {
-      "id": 3,
       "codigo": "g",
-      "nombre": "Gramo"
+      "nombre": "g",
+      "id": 8
     },
     {
-      "id": 4,
+      "codigo": "kg",
+      "nombre": "kg",
+      "id": 9
+    },
+    {
+      "codigo": "mg",
+      "nombre": "mg",
+      "id": 10
+    },
+    {
       "codigo": "ml",
-      "nombre": "Mililitro"
-    },
-    {
-      "id": 5,
-      "codigo": "m",
-      "nombre": "Metro"
+      "nombre": "mL",
+      "id": 11
     }
   ]
 }

@@ -8,6 +8,7 @@
 
 Pillow>=10.0.0
 tkcalendar>=1.6.1
+openpyxl>=3.1.2
 #
 # Módulos estándar utilizados:
 #   - tkinter     (interfaz gráfica)

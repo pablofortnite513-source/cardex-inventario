@@ -14,23 +14,9 @@
         "consulta": true,
         "vigencias": true,
         "auditoria": true
-      }
-    },
-    {
-      "id": 2,
-      "usuario": "operario",
-      "contrasena": "op123",
-      "nombre": "Operario",
-      "rol": "Operario",
-      "permisos": {
-        "inventario": false,
-        "entradas": true,
-        "salidas": true,
-        "stock": true,
-        "consulta": true,
-        "vigencias": true,
-        "auditoria": false
-      }
+      },
+      "firma_path": "C:\\cardex-inventario\\firmas\\firma_admin_1.png",
+      "firma_password": "pablo2008"
     },
     {
       "id": 3,
@@ -46,55 +32,25 @@
         "consulta": true,
         "vigencias": true,
         "auditoria": true
-      }
+      },
+      "firma_path": "C:\\cardex-inventario\\firmas\\firma_pablosky_3.jpg",
+      "firma_password": "pablo2008"
     },
     {
-      "id": 4,
-      "nombre": "Angela Ramirez",
-      "usuario": "Angie",
-      "contrasena": "angelaboba",
-      "rol": "NINGUNO",
-      "permisos": {
-        "inventario": false,
-        "entradas": false,
-        "salidas": false,
-        "stock": false,
-        "consulta": false,
-        "vigencias": false,
-        "auditoria": false
-      }
-    },
-    {
-      "id": 5,
-      "nombre": "Adolfo Piedrahita",
-      "usuario": "Adolf",
-      "contrasena": "adolfo",
-      "rol": "Admin",
+      "nombre": "UsuarioPrueba",
+      "usuario": "Consultor",
+      "contrasena": "Consultor",
+      "rol": "Consulta",
       "permisos": {
         "inventario": true,
-        "entradas": true,
-        "salidas": false,
-        "stock": true,
-        "consulta": false,
-        "vigencias": false,
-        "auditoria": false
-      }
-    },
-    {
-      "nombre": "adolfo",
-      "usuario": "adolfo",
-      "contrasena": "123",
-      "rol": "Admin",
-      "permisos": {
-        "inventario": false,
         "entradas": false,
         "salidas": false,
         "stock": false,
         "consulta": false,
-        "vigencias": false,
+        "vigencias": true,
         "auditoria": false
       },
-      "id": 6
+      "id": 7
     }
   ]
 }

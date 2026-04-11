@@ -2,21 +2,1437 @@
   "maestrasUbicaciones": [
     {
       "id": 1,
-      "codigo": "UB001",
-      "nombre": "Estante A",
-      "almacen": "Almacén Central"
+      "codigo": "Nevera",
+      "nombre": "Nevera",
+      "id_almacen": 1
     },
     {
       "id": 2,
-      "codigo": "UB002",
-      "nombre": "Estante B",
-      "almacen": "Almacén Central"
+      "codigo": "Nevera (11N.2)",
+      "nombre": "Nevera (11N.2)",
+      "id_almacen": 1
     },
     {
       "id": 3,
-      "codigo": "UB003",
-      "nombre": "Refrigeración",
-      "almacen": "Almacén Frío"
+      "codigo": "Int.1.4.E2",
+      "nombre": "Int.1.4.E2",
+      "id_almacen": 1
+    },
+    {
+      "id": 4,
+      "codigo": "Int.1.4.D2",
+      "nombre": "Int.1.4.D2",
+      "id_almacen": 1
+    },
+    {
+      "id": 5,
+      "codigo": "Int.1.4.C3",
+      "nombre": "Int.1.4.C3",
+      "id_almacen": 1
+    },
+    {
+      "id": 6,
+      "codigo": "Int.1.4.C1",
+      "nombre": "Int.1.4.C1",
+      "id_almacen": 1
+    },
+    {
+      "id": 7,
+      "codigo": "Int.1.4.B2",
+      "nombre": "Int.1.4.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 8,
+      "codigo": "Int.1.4.B1",
+      "nombre": "Int.1.4.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 9,
+      "codigo": "Int.1.4.A3",
+      "nombre": "Int.1.4.A3",
+      "id_almacen": 1
+    },
+    {
+      "id": 10,
+      "codigo": "Int.1.4.A2",
+      "nombre": "Int.1.4.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 11,
+      "codigo": "Int.1.4.A1",
+      "nombre": "Int.1.4.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 12,
+      "codigo": "Int.1.3.E3",
+      "nombre": "Int.1.3.E3",
+      "id_almacen": 1
+    },
+    {
+      "id": 13,
+      "codigo": "Int.1.3.E2",
+      "nombre": "Int.1.3.E2",
+      "id_almacen": 1
+    },
+    {
+      "id": 14,
+      "codigo": "Int.1.3.E1",
+      "nombre": "Int.1.3.E1",
+      "id_almacen": 1
+    },
+    {
+      "id": 15,
+      "codigo": "Int.1.3.D3",
+      "nombre": "Int.1.3.D3",
+      "id_almacen": 1
+    },
+    {
+      "id": 16,
+      "codigo": "Int.1.3.D2",
+      "nombre": "Int.1.3.D2",
+      "id_almacen": 1
+    },
+    {
+      "id": 17,
+      "codigo": "Int.1.3.B2",
+      "nombre": "Int.1.3.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 18,
+      "codigo": "Int.1.3.B1",
+      "nombre": "Int.1.3.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 19,
+      "codigo": "Int.1.3.A2",
+      "nombre": "Int.1.3.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 20,
+      "codigo": "Int.1.3.A1",
+      "nombre": "Int.1.3.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 21,
+      "codigo": "Int.1.2.E2",
+      "nombre": "Int.1.2.E2",
+      "id_almacen": 1
+    },
+    {
+      "id": 22,
+      "codigo": "Int.1.2.D1",
+      "nombre": "Int.1.2.D1",
+      "id_almacen": 1
+    },
+    {
+      "id": 23,
+      "codigo": "Int.1.2.C3",
+      "nombre": "Int.1.2.C3",
+      "id_almacen": 1
+    },
+    {
+      "id": 24,
+      "codigo": "Int.1.2.C1",
+      "nombre": "Int.1.2.C1",
+      "id_almacen": 1
+    },
+    {
+      "id": 25,
+      "codigo": "Int.1.2.B3",
+      "nombre": "Int.1.2.B3",
+      "id_almacen": 1
+    },
+    {
+      "id": 26,
+      "codigo": "Int.1.2.B2",
+      "nombre": "Int.1.2.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 27,
+      "codigo": "Int.1.1.F4",
+      "nombre": "Int.1.1.F4",
+      "id_almacen": 1
+    },
+    {
+      "id": 28,
+      "codigo": "Int.1.1.F3",
+      "nombre": "Int.1.1.F3",
+      "id_almacen": 1
+    },
+    {
+      "id": 29,
+      "codigo": "Int.1.1.F2",
+      "nombre": "Int.1.1.F2",
+      "id_almacen": 1
+    },
+    {
+      "id": 30,
+      "codigo": "Int.1.1.D4",
+      "nombre": "Int.1.1.D4",
+      "id_almacen": 1
+    },
+    {
+      "id": 31,
+      "codigo": "Int.1.1.D2",
+      "nombre": "Int.1.1.D2",
+      "id_almacen": 1
+    },
+    {
+      "id": 32,
+      "codigo": "Int.1.1.D1",
+      "nombre": "Int.1.1.D1",
+      "id_almacen": 1
+    },
+    {
+      "id": 33,
+      "codigo": "Int.1.1.C2",
+      "nombre": "Int.1.1.C2",
+      "id_almacen": 1
+    },
+    {
+      "id": 34,
+      "codigo": "Int.1.1.B3",
+      "nombre": "Int.1.1.B3",
+      "id_almacen": 1
+    },
+    {
+      "id": 35,
+      "codigo": "Int.1.1.B2",
+      "nombre": "Int.1.1.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 36,
+      "codigo": "Int.1.1.B1",
+      "nombre": "Int.1.1.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 37,
+      "codigo": "Int.1.1.A3",
+      "nombre": "Int.1.1.A3",
+      "id_almacen": 1
+    },
+    {
+      "id": 38,
+      "codigo": "Int.1.1.A2",
+      "nombre": "Int.1.1.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 39,
+      "codigo": "Freezer",
+      "nombre": "Freezer",
+      "id_almacen": 1
+    },
+    {
+      "id": 40,
+      "codigo": "Cabina (12C)",
+      "nombre": "Cabina (12C)",
+      "id_almacen": 1
+    },
+    {
+      "id": 41,
+      "codigo": "Almacén",
+      "nombre": "Almacén",
+      "id_almacen": 1
+    },
+    {
+      "id": 42,
+      "codigo": "ALMACEN",
+      "nombre": "ALMACEN",
+      "id_almacen": 1
+    },
+    {
+      "id": 43,
+      "codigo": "4.3.E1",
+      "nombre": "4.3.E1",
+      "id_almacen": 1
+    },
+    {
+      "id": 44,
+      "codigo": "4.3.D2",
+      "nombre": "4.3.D2",
+      "id_almacen": 1
+    },
+    {
+      "id": 45,
+      "codigo": "4.3.D1",
+      "nombre": "4.3.D1",
+      "id_almacen": 1
+    },
+    {
+      "id": 46,
+      "codigo": "4.3.C2",
+      "nombre": "4.3.C2",
+      "id_almacen": 1
+    },
+    {
+      "id": 47,
+      "codigo": "4.3.B2",
+      "nombre": "4.3.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 48,
+      "codigo": "4.3.A2",
+      "nombre": "4.3.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 49,
+      "codigo": "4.3.A1",
+      "nombre": "4.3.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 50,
+      "codigo": "4.2.E4",
+      "nombre": "4.2.E4",
+      "id_almacen": 1
+    },
+    {
+      "id": 51,
+      "codigo": "4.2.E3",
+      "nombre": "4.2.E3",
+      "id_almacen": 1
+    },
+    {
+      "id": 52,
+      "codigo": "4.2.E1",
+      "nombre": "4.2.E1",
+      "id_almacen": 1
+    },
+    {
+      "id": 53,
+      "codigo": "4.2.E",
+      "nombre": "4.2.E",
+      "id_almacen": 1
+    },
+    {
+      "id": 54,
+      "codigo": "4.2.D6",
+      "nombre": "4.2.D6",
+      "id_almacen": 1
+    },
+    {
+      "id": 55,
+      "codigo": "4.2.D5",
+      "nombre": "4.2.D5",
+      "id_almacen": 1
+    },
+    {
+      "id": 56,
+      "codigo": "4.2.D4",
+      "nombre": "4.2.D4",
+      "id_almacen": 1
+    },
+    {
+      "id": 57,
+      "codigo": "4.2.D2",
+      "nombre": "4.2.D2",
+      "id_almacen": 1
+    },
+    {
+      "id": 58,
+      "codigo": "4.2.D1",
+      "nombre": "4.2.D1",
+      "id_almacen": 1
+    },
+    {
+      "id": 59,
+      "codigo": "4.2.C1",
+      "nombre": "4.2.C1",
+      "id_almacen": 1
+    },
+    {
+      "id": 60,
+      "codigo": "4.2.B3",
+      "nombre": "4.2.B3",
+      "id_almacen": 1
+    },
+    {
+      "id": 61,
+      "codigo": "4.2.B2",
+      "nombre": "4.2.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 62,
+      "codigo": "4.2.B1",
+      "nombre": "4.2.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 63,
+      "codigo": "4.2.B",
+      "nombre": "4.2.B",
+      "id_almacen": 1
+    },
+    {
+      "id": 64,
+      "codigo": "4.2.A4",
+      "nombre": "4.2.A4",
+      "id_almacen": 1
+    },
+    {
+      "id": 65,
+      "codigo": "4.2.A3",
+      "nombre": "4.2.A3",
+      "id_almacen": 1
+    },
+    {
+      "id": 66,
+      "codigo": "4.2.A2",
+      "nombre": "4.2.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 67,
+      "codigo": "4.2.A1",
+      "nombre": "4.2.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 68,
+      "codigo": "4.1.F5",
+      "nombre": "4.1.F5",
+      "id_almacen": 1
+    },
+    {
+      "id": 69,
+      "codigo": "4.1.F4",
+      "nombre": "4.1.F4",
+      "id_almacen": 1
+    },
+    {
+      "id": 70,
+      "codigo": "4.1.F3",
+      "nombre": "4.1.F3",
+      "id_almacen": 1
+    },
+    {
+      "id": 71,
+      "codigo": "4.1.F2",
+      "nombre": "4.1.F2",
+      "id_almacen": 1
+    },
+    {
+      "id": 72,
+      "codigo": "4.1.F",
+      "nombre": "4.1.F",
+      "id_almacen": 1
+    },
+    {
+      "id": 73,
+      "codigo": "4.1.E4",
+      "nombre": "4.1.E4",
+      "id_almacen": 1
+    },
+    {
+      "id": 74,
+      "codigo": "4.1.E3",
+      "nombre": "4.1.E3",
+      "id_almacen": 1
+    },
+    {
+      "id": 75,
+      "codigo": "4.1.E2",
+      "nombre": "4.1.E2",
+      "id_almacen": 1
+    },
+    {
+      "id": 76,
+      "codigo": "4.1.E1",
+      "nombre": "4.1.E1",
+      "id_almacen": 1
+    },
+    {
+      "id": 77,
+      "codigo": "4.1.D3",
+      "nombre": "4.1.D3",
+      "id_almacen": 1
+    },
+    {
+      "id": 78,
+      "codigo": "4.1.D2",
+      "nombre": "4.1.D2",
+      "id_almacen": 1
+    },
+    {
+      "id": 79,
+      "codigo": "4.1.D1",
+      "nombre": "4.1.D1",
+      "id_almacen": 1
+    },
+    {
+      "id": 80,
+      "codigo": "4.1.C3",
+      "nombre": "4.1.C3",
+      "id_almacen": 1
+    },
+    {
+      "id": 81,
+      "codigo": "4.1.C2",
+      "nombre": "4.1.C2",
+      "id_almacen": 1
+    },
+    {
+      "id": 82,
+      "codigo": "4.1.B4",
+      "nombre": "4.1.B4",
+      "id_almacen": 1
+    },
+    {
+      "id": 83,
+      "codigo": "4.1.B3",
+      "nombre": "4.1.B3",
+      "id_almacen": 1
+    },
+    {
+      "id": 84,
+      "codigo": "4.1.B2",
+      "nombre": "4.1.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 85,
+      "codigo": "4.1.B1",
+      "nombre": "4.1.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 86,
+      "codigo": "4.1.B",
+      "nombre": "4.1.B",
+      "id_almacen": 1
+    },
+    {
+      "id": 87,
+      "codigo": "4.1.A4",
+      "nombre": "4.1.A4",
+      "id_almacen": 1
+    },
+    {
+      "id": 88,
+      "codigo": "4.1.A3",
+      "nombre": "4.1.A3",
+      "id_almacen": 1
+    },
+    {
+      "id": 89,
+      "codigo": "4.1.A1",
+      "nombre": "4.1.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 90,
+      "codigo": "3.3.B4",
+      "nombre": "3.3.B4",
+      "id_almacen": 1
+    },
+    {
+      "id": 91,
+      "codigo": "3.3.A1",
+      "nombre": "3.3.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 92,
+      "codigo": "3.3.A",
+      "nombre": "3.3.A",
+      "id_almacen": 1
+    },
+    {
+      "id": 93,
+      "codigo": "3.2.B1",
+      "nombre": "3.2.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 94,
+      "codigo": "3.2.B",
+      "nombre": "3.2.B",
+      "id_almacen": 1
+    },
+    {
+      "id": 95,
+      "codigo": "3.2.A4",
+      "nombre": "3.2.A4",
+      "id_almacen": 1
+    },
+    {
+      "id": 96,
+      "codigo": "3.2.A3",
+      "nombre": "3.2.A3",
+      "id_almacen": 1
+    },
+    {
+      "id": 97,
+      "codigo": "3.2.A2",
+      "nombre": "3.2.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 98,
+      "codigo": "3.2.A1",
+      "nombre": "3.2.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 99,
+      "codigo": "3.1.B3",
+      "nombre": "3.1.B3",
+      "id_almacen": 1
+    },
+    {
+      "id": 100,
+      "codigo": "3.1.B1",
+      "nombre": "3.1.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 101,
+      "codigo": "3.1.A3",
+      "nombre": "3.1.A3",
+      "id_almacen": 1
+    },
+    {
+      "id": 102,
+      "codigo": "3.1.A1",
+      "nombre": "3.1.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 103,
+      "codigo": "2F6",
+      "nombre": "2F6",
+      "id_almacen": 1
+    },
+    {
+      "id": 104,
+      "codigo": "2.4.F4",
+      "nombre": "2.4.F4",
+      "id_almacen": 1
+    },
+    {
+      "id": 105,
+      "codigo": "2.4.F3",
+      "nombre": "2.4.F3",
+      "id_almacen": 1
+    },
+    {
+      "id": 106,
+      "codigo": "2.4.F1",
+      "nombre": "2.4.F1",
+      "id_almacen": 1
+    },
+    {
+      "id": 107,
+      "codigo": "2.4.E4",
+      "nombre": "2.4.E4",
+      "id_almacen": 1
+    },
+    {
+      "id": 108,
+      "codigo": "2.4.E3",
+      "nombre": "2.4.E3",
+      "id_almacen": 1
+    },
+    {
+      "id": 109,
+      "codigo": "2.4.E2",
+      "nombre": "2.4.E2",
+      "id_almacen": 1
+    },
+    {
+      "id": 110,
+      "codigo": "2.4.E1",
+      "nombre": "2.4.E1",
+      "id_almacen": 1
+    },
+    {
+      "id": 111,
+      "codigo": "2.4.D2",
+      "nombre": "2.4.D2",
+      "id_almacen": 1
+    },
+    {
+      "id": 112,
+      "codigo": "2.4.D1",
+      "nombre": "2.4.D1",
+      "id_almacen": 1
+    },
+    {
+      "id": 113,
+      "codigo": "2.4.D",
+      "nombre": "2.4.D",
+      "id_almacen": 1
+    },
+    {
+      "id": 114,
+      "codigo": "2.4.C2",
+      "nombre": "2.4.C2",
+      "id_almacen": 1
+    },
+    {
+      "id": 115,
+      "codigo": "2.4.C1",
+      "nombre": "2.4.C1",
+      "id_almacen": 1
+    },
+    {
+      "id": 116,
+      "codigo": "2.4.B3",
+      "nombre": "2.4.B3",
+      "id_almacen": 1
+    },
+    {
+      "id": 117,
+      "codigo": "2.4.B1",
+      "nombre": "2.4.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 118,
+      "codigo": "2.4.B2",
+      "nombre": "2.4.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 119,
+      "codigo": "2.4.A7",
+      "nombre": "2.4.A7",
+      "id_almacen": 1
+    },
+    {
+      "id": 120,
+      "codigo": "2.4.A6",
+      "nombre": "2.4.A6",
+      "id_almacen": 1
+    },
+    {
+      "id": 121,
+      "codigo": "2.4.A5",
+      "nombre": "2.4.A5",
+      "id_almacen": 1
+    },
+    {
+      "id": 122,
+      "codigo": "2.4.A3",
+      "nombre": "2.4.A3",
+      "id_almacen": 1
+    },
+    {
+      "id": 123,
+      "codigo": "2.4.A2",
+      "nombre": "2.4.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 124,
+      "codigo": "2.4.A1",
+      "nombre": "2.4.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 125,
+      "codigo": "2.4.A",
+      "nombre": "2.4.A",
+      "id_almacen": 1
+    },
+    {
+      "id": 126,
+      "codigo": "2.3.F4",
+      "nombre": "2.3.F4",
+      "id_almacen": 1
+    },
+    {
+      "id": 127,
+      "codigo": "2.3.F3",
+      "nombre": "2.3.F3",
+      "id_almacen": 1
+    },
+    {
+      "id": 128,
+      "codigo": "2.3.F2",
+      "nombre": "2.3.F2",
+      "id_almacen": 1
+    },
+    {
+      "id": 129,
+      "codigo": "2.3.F1",
+      "nombre": "2.3.F1",
+      "id_almacen": 1
+    },
+    {
+      "id": 130,
+      "codigo": "2.3.F",
+      "nombre": "2.3.F",
+      "id_almacen": 1
+    },
+    {
+      "id": 131,
+      "codigo": "2.3.E3",
+      "nombre": "2.3.E3",
+      "id_almacen": 1
+    },
+    {
+      "id": 132,
+      "codigo": "2.3.E2",
+      "nombre": "2.3.E2",
+      "id_almacen": 1
+    },
+    {
+      "id": 133,
+      "codigo": "2.3.E1",
+      "nombre": "2.3.E1",
+      "id_almacen": 1
+    },
+    {
+      "id": 134,
+      "codigo": "2.3.E",
+      "nombre": "2.3.E",
+      "id_almacen": 1
+    },
+    {
+      "id": 135,
+      "codigo": "2.3.D1",
+      "nombre": "2.3.D1",
+      "id_almacen": 1
+    },
+    {
+      "id": 136,
+      "codigo": "2.3.C2",
+      "nombre": "2.3.C2",
+      "id_almacen": 1
+    },
+    {
+      "id": 137,
+      "codigo": "2.3.C1",
+      "nombre": "2.3.C1",
+      "id_almacen": 1
+    },
+    {
+      "id": 138,
+      "codigo": "2.3.B3",
+      "nombre": "2.3.B3",
+      "id_almacen": 1
+    },
+    {
+      "id": 139,
+      "codigo": "2.3.B1",
+      "nombre": "2.3.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 140,
+      "codigo": "2.3.A4",
+      "nombre": "2.3.A4",
+      "id_almacen": 1
+    },
+    {
+      "id": 141,
+      "codigo": "2.3.A3",
+      "nombre": "2.3.A3",
+      "id_almacen": 1
+    },
+    {
+      "id": 142,
+      "codigo": "2.3.A2",
+      "nombre": "2.3.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 143,
+      "codigo": "2.3.A1",
+      "nombre": "2.3.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 144,
+      "codigo": "2.3.A",
+      "nombre": "2.3.A",
+      "id_almacen": 1
+    },
+    {
+      "id": 145,
+      "codigo": "2.2.G1",
+      "nombre": "2.2.G1",
+      "id_almacen": 1
+    },
+    {
+      "id": 146,
+      "codigo": "2.2.F4",
+      "nombre": "2.2.F4",
+      "id_almacen": 1
+    },
+    {
+      "id": 147,
+      "codigo": "2.2.F1",
+      "nombre": "2.2.F1",
+      "id_almacen": 1
+    },
+    {
+      "id": 148,
+      "codigo": "2.2.F",
+      "nombre": "2.2.F",
+      "id_almacen": 1
+    },
+    {
+      "id": 149,
+      "codigo": "2.2.E4",
+      "nombre": "2.2.E4",
+      "id_almacen": 1
+    },
+    {
+      "id": 150,
+      "codigo": "2.2.E3",
+      "nombre": "2.2.E3",
+      "id_almacen": 1
+    },
+    {
+      "id": 151,
+      "codigo": "2.2.E2",
+      "nombre": "2.2.E2",
+      "id_almacen": 1
+    },
+    {
+      "id": 152,
+      "codigo": "2.2.E1",
+      "nombre": "2.2.E1",
+      "id_almacen": 1
+    },
+    {
+      "id": 153,
+      "codigo": "2.2.D4",
+      "nombre": "2.2.D4",
+      "id_almacen": 1
+    },
+    {
+      "id": 154,
+      "codigo": "2.2.D3",
+      "nombre": "2.2.D3",
+      "id_almacen": 1
+    },
+    {
+      "id": 155,
+      "codigo": "2.2.D2",
+      "nombre": "2.2.D2",
+      "id_almacen": 1
+    },
+    {
+      "id": 156,
+      "codigo": "2.2.D1",
+      "nombre": "2.2.D1",
+      "id_almacen": 1
+    },
+    {
+      "id": 157,
+      "codigo": "2.2.C5",
+      "nombre": "2.2.C5",
+      "id_almacen": 1
+    },
+    {
+      "id": 158,
+      "codigo": "2.2.C4",
+      "nombre": "2.2.C4",
+      "id_almacen": 1
+    },
+    {
+      "id": 159,
+      "codigo": "2.2.C3",
+      "nombre": "2.2.C3",
+      "id_almacen": 1
+    },
+    {
+      "id": 160,
+      "codigo": "2.2.C2",
+      "nombre": "2.2.C2",
+      "id_almacen": 1
+    },
+    {
+      "id": 161,
+      "codigo": "2.2.C1",
+      "nombre": "2.2.C1",
+      "id_almacen": 1
+    },
+    {
+      "id": 162,
+      "codigo": "2.2.B3",
+      "nombre": "2.2.B3",
+      "id_almacen": 1
+    },
+    {
+      "id": 163,
+      "codigo": "2.2.B2",
+      "nombre": "2.2.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 164,
+      "codigo": "2.2.B1",
+      "nombre": "2.2.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 165,
+      "codigo": "2.2.A4",
+      "nombre": "2.2.A4",
+      "id_almacen": 1
+    },
+    {
+      "id": 166,
+      "codigo": "2.2.A3",
+      "nombre": "2.2.A3",
+      "id_almacen": 1
+    },
+    {
+      "id": 167,
+      "codigo": "2.2.A2",
+      "nombre": "2.2.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 168,
+      "codigo": "2.2.A1",
+      "nombre": "2.2.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 169,
+      "codigo": "2.2 G5",
+      "nombre": "2.2 G5",
+      "id_almacen": 1
+    },
+    {
+      "id": 170,
+      "codigo": "2.2 G4",
+      "nombre": "2.2 G4",
+      "id_almacen": 1
+    },
+    {
+      "id": 171,
+      "codigo": "2.2.F2",
+      "nombre": "2.2.F2",
+      "id_almacen": 1
+    },
+    {
+      "id": 172,
+      "codigo": "2.2 B8",
+      "nombre": "2.2 B8",
+      "id_almacen": 1
+    },
+    {
+      "id": 173,
+      "codigo": "2.1.A2",
+      "nombre": "2.1.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 174,
+      "codigo": "2.1.I5",
+      "nombre": "2.1.I5",
+      "id_almacen": 1
+    },
+    {
+      "id": 175,
+      "codigo": "2.1.I4",
+      "nombre": "2.1.I4",
+      "id_almacen": 1
+    },
+    {
+      "id": 176,
+      "codigo": "2.1.I2",
+      "nombre": "2.1.I2",
+      "id_almacen": 1
+    },
+    {
+      "id": 177,
+      "codigo": "2.1.I1",
+      "nombre": "2.1.I1",
+      "id_almacen": 1
+    },
+    {
+      "id": 178,
+      "codigo": "2.1.I",
+      "nombre": "2.1.I",
+      "id_almacen": 1
+    },
+    {
+      "id": 179,
+      "codigo": "2.1.H7",
+      "nombre": "2.1.H7",
+      "id_almacen": 1
+    },
+    {
+      "id": 180,
+      "codigo": "2.1.H6",
+      "nombre": "2.1.H6",
+      "id_almacen": 1
+    },
+    {
+      "id": 181,
+      "codigo": "2.1.H4",
+      "nombre": "2.1.H4",
+      "id_almacen": 1
+    },
+    {
+      "id": 182,
+      "codigo": "2.1.H2",
+      "nombre": "2.1.H2",
+      "id_almacen": 1
+    },
+    {
+      "id": 183,
+      "codigo": "2.1.H1",
+      "nombre": "2.1.H1",
+      "id_almacen": 1
+    },
+    {
+      "id": 184,
+      "codigo": "2.1.G6",
+      "nombre": "2.1.G6",
+      "id_almacen": 1
+    },
+    {
+      "id": 185,
+      "codigo": "2.1.G5",
+      "nombre": "2.1.G5",
+      "id_almacen": 1
+    },
+    {
+      "id": 186,
+      "codigo": "2.1.G3",
+      "nombre": "2.1.G3",
+      "id_almacen": 1
+    },
+    {
+      "id": 187,
+      "codigo": "2.1.G2",
+      "nombre": "2.1.G2",
+      "id_almacen": 1
+    },
+    {
+      "id": 188,
+      "codigo": "2.1.F5",
+      "nombre": "2.1.F5",
+      "id_almacen": 1
+    },
+    {
+      "id": 189,
+      "codigo": "2.1.F2",
+      "nombre": "2.1.F2",
+      "id_almacen": 1
+    },
+    {
+      "id": 190,
+      "codigo": "2.1.F1",
+      "nombre": "2.1.F1",
+      "id_almacen": 1
+    },
+    {
+      "id": 191,
+      "codigo": "2.1.E3",
+      "nombre": "2.1.E3",
+      "id_almacen": 1
+    },
+    {
+      "id": 192,
+      "codigo": "2.1.E2",
+      "nombre": "2.1.E2",
+      "id_almacen": 1
+    },
+    {
+      "id": 193,
+      "codigo": "2.1.E1",
+      "nombre": "2.1.E1",
+      "id_almacen": 1
+    },
+    {
+      "id": 194,
+      "codigo": "2.1.D8",
+      "nombre": "2.1.D8",
+      "id_almacen": 1
+    },
+    {
+      "id": 195,
+      "codigo": "2.1.D7",
+      "nombre": "2.1.D7",
+      "id_almacen": 1
+    },
+    {
+      "id": 196,
+      "codigo": "2.1.D6",
+      "nombre": "2.1.D6",
+      "id_almacen": 1
+    },
+    {
+      "id": 197,
+      "codigo": "2.1.D5",
+      "nombre": "2.1.D5",
+      "id_almacen": 1
+    },
+    {
+      "id": 198,
+      "codigo": "2.1.D4",
+      "nombre": "2.1.D4",
+      "id_almacen": 1
+    },
+    {
+      "id": 199,
+      "codigo": "2.1.D3",
+      "nombre": "2.1.D3",
+      "id_almacen": 1
+    },
+    {
+      "id": 200,
+      "codigo": "2.1.D2",
+      "nombre": "2.1.D2",
+      "id_almacen": 1
+    },
+    {
+      "id": 201,
+      "codigo": "2.1.D1",
+      "nombre": "2.1.D1",
+      "id_almacen": 1
+    },
+    {
+      "id": 202,
+      "codigo": "2.1.C7",
+      "nombre": "2.1.C7",
+      "id_almacen": 1
+    },
+    {
+      "id": 203,
+      "codigo": "2.1.C6",
+      "nombre": "2.1.C6",
+      "id_almacen": 1
+    },
+    {
+      "id": 204,
+      "codigo": "2.1.C5",
+      "nombre": "2.1.C5",
+      "id_almacen": 1
+    },
+    {
+      "id": 205,
+      "codigo": "2.1.C4",
+      "nombre": "2.1.C4",
+      "id_almacen": 1
+    },
+    {
+      "id": 206,
+      "codigo": "2.1.C3",
+      "nombre": "2.1.C3",
+      "id_almacen": 1
+    },
+    {
+      "id": 207,
+      "codigo": "2.1.C2",
+      "nombre": "2.1.C2",
+      "id_almacen": 1
+    },
+    {
+      "id": 208,
+      "codigo": "2.1.C1",
+      "nombre": "2.1.C1",
+      "id_almacen": 1
+    },
+    {
+      "id": 209,
+      "codigo": "2.1.B7",
+      "nombre": "2.1.B7",
+      "id_almacen": 1
+    },
+    {
+      "id": 210,
+      "codigo": "2.1.B6",
+      "nombre": "2.1.B6",
+      "id_almacen": 1
+    },
+    {
+      "id": 211,
+      "codigo": "2.1.B4",
+      "nombre": "2.1.B4",
+      "id_almacen": 1
+    },
+    {
+      "id": 212,
+      "codigo": "2.1.B3",
+      "nombre": "2.1.B3",
+      "id_almacen": 1
+    },
+    {
+      "id": 213,
+      "codigo": "2.1.B2",
+      "nombre": "2.1.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 214,
+      "codigo": "2.1.B1",
+      "nombre": "2.1.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 215,
+      "codigo": "2.1.A6",
+      "nombre": "2.1.A6",
+      "id_almacen": 1
+    },
+    {
+      "id": 216,
+      "codigo": "2.1.A5",
+      "nombre": "2.1.A5",
+      "id_almacen": 1
+    },
+    {
+      "id": 217,
+      "codigo": "2.1.A3",
+      "nombre": "2.1.A3",
+      "id_almacen": 1
+    },
+    {
+      "id": 218,
+      "codigo": "13.N2",
+      "nombre": "13.N2",
+      "id_almacen": 1
+    },
+    {
+      "id": 219,
+      "codigo": "13. N2",
+      "nombre": "13. N2",
+      "id_almacen": 1
+    },
+    {
+      "id": 220,
+      "codigo": "12.N3",
+      "nombre": "12.N3",
+      "id_almacen": 1
+    },
+    {
+      "id": 221,
+      "codigo": "12.N2",
+      "nombre": "12.N2",
+      "id_almacen": 1
+    },
+    {
+      "id": 222,
+      "codigo": "11N.3",
+      "nombre": "11N.3",
+      "id_almacen": 1
+    },
+    {
+      "id": 223,
+      "codigo": "11.N1",
+      "nombre": "11.N1",
+      "id_almacen": 1
+    },
+    {
+      "id": 224,
+      "codigo": "1.3.E4",
+      "nombre": "1.3.E4",
+      "id_almacen": 1
+    },
+    {
+      "id": 225,
+      "codigo": "1.3.E2",
+      "nombre": "1.3.E2",
+      "id_almacen": 1
+    },
+    {
+      "id": 226,
+      "codigo": "1.3.D2",
+      "nombre": "1.3.D2",
+      "id_almacen": 1
+    },
+    {
+      "id": 227,
+      "codigo": "1.3.C2",
+      "nombre": "1.3.C2",
+      "id_almacen": 1
+    },
+    {
+      "id": 228,
+      "codigo": "1.3.C1",
+      "nombre": "1.3.C1",
+      "id_almacen": 1
+    },
+    {
+      "id": 229,
+      "codigo": "1.3.B2",
+      "nombre": "1.3.B2",
+      "id_almacen": 1
+    },
+    {
+      "id": 230,
+      "codigo": "1.3.B1",
+      "nombre": "1.3.B1",
+      "id_almacen": 1
+    },
+    {
+      "id": 231,
+      "codigo": "1.3.B3",
+      "nombre": "1.3.B3",
+      "id_almacen": 1
+    },
+    {
+      "id": 232,
+      "codigo": "1.3.A2",
+      "nombre": "1.3.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 233,
+      "codigo": "1.3.A1",
+      "nombre": "1.3.A1",
+      "id_almacen": 1
+    },
+    {
+      "id": 234,
+      "codigo": "1.2.E4",
+      "nombre": "1.2.E4",
+      "id_almacen": 1
+    },
+    {
+      "id": 235,
+      "codigo": "1.2.D1",
+      "nombre": "1.2.D1",
+      "id_almacen": 1
+    },
+    {
+      "id": 236,
+      "codigo": "1.2.C2",
+      "nombre": "1.2.C2",
+      "id_almacen": 1
+    },
+    {
+      "id": 237,
+      "codigo": "1.2.A4",
+      "nombre": "1.2.A4",
+      "id_almacen": 1
+    },
+    {
+      "id": 238,
+      "codigo": "1.2.A2",
+      "nombre": "1.2.A2",
+      "id_almacen": 1
+    },
+    {
+      "id": 239,
+      "codigo": "Equipo KF",
+      "nombre": "Equipo KF",
+      "id_almacen": 1
     }
   ]
 }

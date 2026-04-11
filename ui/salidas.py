@@ -9,14 +9,28 @@ from config.config import (
     COLORS,
     ENTRADAS_FILE,
     INVENTARIO_FILE,
+    PROVEEDORES_FILE,
     SALIDAS_FILE,
+    SUSTANCIAS_FILE,
     TIPOS_SALIDA_FILE,
     UBICACIONES_FILE,
     UBICACIONES_USO_FILE,
+    UNIDADES_FILE,
 )
 from ui.bitacora import registrar_bitacora
+from ui.input_behaviors import bind_code_combo_autofill, bind_uppercase
 from ui.styles import apply_styles_to_window, make_required_label, apply_focus_bindings, build_header
-from utils.data_handler import DataHandler, sync_inventario
+from utils.data_handler import (
+    DataHandler,
+    Lookups,
+    build_location_indexes,
+    build_substance_indexes,
+    location_name,
+    substance_code,
+    substance_from_code,
+    substance_name,
+    sync_inventario,
+)
 
 
 class SalidasWindow:
@@ -62,6 +76,8 @@ class SalidasWindow:
         self.dias_vigencia_label: tk.Label | None = None
         self.history_tree: ttk.Treeview | None = None
         self.save_btn: tk.Button | None = None
+        self._combo_sources: dict[str, list[str]] = {}
+        self._combo_strict: set[str] = set()
 
         self._load_options()
         self._build_ui()
@@ -95,17 +111,43 @@ class SalidasWindow:
 
         ubicaciones_data = DataHandler.load_json(UBICACIONES_FILE)
         ubicaciones_uso_data = DataHandler.load_json(UBICACIONES_USO_FILE)
+        sustancias = DataHandler.load_json(SUSTANCIAS_FILE).get("maestrasSustancias", [])
         self.ubicacion_options = [
             x.get("nombre", "") for x in ubicaciones_data.get("maestrasUbicaciones", []) if x.get("nombre")
         ] + [
             x.get("nombre", "") for x in ubicaciones_uso_data.get("maestrasUbicacionesUso", []) if x.get("nombre")
         ]
 
+        self.sustancias_by_id, self.sustancias_by_code = build_substance_indexes(sustancias)
+        self.locations_by_key, self.location_by_name = build_location_indexes(
+            ubicaciones_data.get("maestrasUbicaciones", []),
+            ubicaciones_uso_data.get("maestrasUbicacionesUso", []),
+        )
+
+        tipos_salida_cat = tipos_data.get("maestrasTiposSalida", [])
+        unidades_cat = DataHandler.load_json(UNIDADES_FILE).get("maestrasUnidades", [])
+        self.lkp = Lookups(
+            tipos_salida=tipos_salida_cat,
+            unidades=unidades_cat,
+        )
+
     def _get_entradas(self) -> list[dict]:
         return DataHandler.get_all(ENTRADAS_FILE, "entradas")
 
     def _get_salidas(self) -> list[dict]:
         return DataHandler.get_all(SALIDAS_FILE, "salidas")
+
+    def _substance_for_code(self, code: str) -> dict | None:
+        return substance_from_code(self.sustancias_by_code, code)
+
+    def _selected_location_fields(self) -> tuple[str, int | None]:
+        selected = self.ubicacion_var.get().strip()
+        if not selected:
+            return "", None
+        for key, record in self.locations_by_key.items():
+            if str(record.get("nombre", "")).strip() == selected:
+                return key[0], key[1]
+        return "", None
 
     def _safe_float(self, value) -> float:
         try:
@@ -114,54 +156,92 @@ class SalidasWindow:
             return 0.0
 
     def _calculate_stock(self, codigo: str, lote: str) -> float:
-        """Stock = Sum(Entradas.Total) - Sum(Salidas.Cantidad) por (codigo, lote), excluyendo anulados."""
+        """Stock = Sum(Entradas.Total) - Sum(Salidas.Cantidad) por sustancia+lote, excluyendo anulados."""
         entradas = self._get_entradas()
         salidas = self._get_salidas()
+        sustancia = self._substance_for_code(codigo)
+        substance_key = sustancia.get("id") if sustancia is not None else codigo
 
         total_entrada = sum(
             self._safe_float(r.get("total", 0))
             for r in entradas
             if not r.get("anulado")
-            and str(r.get("codigo", "")).strip() == codigo
+            and r.get("id_sustancia", r.get("codigo", "")) == substance_key
             and str(r.get("lote", "")).strip() == lote
         )
         total_salida = sum(
             self._safe_float(r.get("cantidad", 0))
             for r in salidas
             if not r.get("anulado")
-            and str(r.get("codigo", "")).strip() == codigo
+            and r.get("id_sustancia", r.get("codigo", "")) == substance_key
             and str(r.get("lote", "")).strip() == lote
         )
         return round(total_entrada - total_salida, 6)
 
     def _available_codes(self) -> list[str]:
         entradas = self._get_entradas()
-        codes = {str(r.get("codigo", "")).strip() for r in entradas if str(r.get("codigo", "")).strip()}
-        return sorted(codes)
+        active_codes = {
+            str(s.get("codigo", "")).strip()
+            for s in self.sustancias_by_id.values()
+            if str(s.get("codigo", "")).strip() and bool(s.get("habilitada", True))
+        }
+        codes = {
+            substance_code(r, self.sustancias_by_id)
+            for r in entradas
+            if substance_code(r, self.sustancias_by_id) in active_codes
+        }
+        return sorted(code for code in codes if self._lotes_for_code(code))
 
     def _lotes_for_code(self, code: str) -> list[str]:
         entradas = self._get_entradas()
+        sustancia = self._substance_for_code(code)
+        substance_key = sustancia.get("id") if sustancia is not None else code
         lotes = {
             str(r.get("lote", "")).strip()
             for r in entradas
-            if str(r.get("codigo", "")).strip() == code and str(r.get("lote", "")).strip()
+            if r.get("id_sustancia", r.get("codigo", "")) == substance_key and str(r.get("lote", "")).strip()
         }
         # Filtrar lotes sin stock disponible
         return sorted(l for l in lotes if self._calculate_stock(code, l) > 0)
 
     def _first_entrada_for(self, codigo: str, lote: str = "") -> dict | None:
+        sustancia = self._substance_for_code(codigo)
+        substance_key = sustancia.get("id") if sustancia is not None else codigo
         for r in self._get_entradas():
-            if str(r.get("codigo", "")).strip() != codigo:
+            if r.get("id_sustancia", r.get("codigo", "")) != substance_key:
                 continue
             if lote and str(r.get("lote", "")).strip() != lote:
                 continue
             return r
         return None
 
+    def _location_options_for(self, codigo: str, lote: str) -> list[str]:
+        sustancia = self._substance_for_code(codigo)
+        substance_key = sustancia.get("id") if sustancia is not None else codigo
+        options: list[str] = []
+        seen: set[str] = set()
+        for rec in self._get_entradas():
+            if rec.get("anulado"):
+                continue
+            if rec.get("id_sustancia", rec.get("codigo", "")) != substance_key:
+                continue
+            if lote and str(rec.get("lote", "")).strip() != lote:
+                continue
+            name = location_name(rec, self.locations_by_key)
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            options.append(name)
+        return options
+
     # ── UI ─────────────────────────────────────────────────────
 
     def _on_mousewheel(self, event) -> None:
-        self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        try:
+            if self._canvas.winfo_exists():
+                self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        except tk.TclError:
+            pass
 
     def _build_ui(self) -> None:
         outer = tk.Frame(self.window, bg="white", bd=1, relief="solid")
@@ -192,7 +272,7 @@ class SalidasWindow:
 
         self.tipo_combo = self._add_combo(row1, "Tipo Salida", self.tipo_salida_var, self.tipo_salida_options, 0, required=True)
         self._add_date_entry(row1, "Fecha Salida", self.fecha_salida_var, 1, required=True)
-        self.codigo_combo = self._add_combo(row1, "Codigo", self.codigo_var, self._available_codes(), 2, required=True)
+        self.codigo_combo = self._add_combo(row1, "Codigo", self.codigo_var, self._available_codes(), 2, required=True, strict=False)
         self._add_entry(row1, "Nombre del Producto", self.nombre_var, 3, readonly=True)
         self.lote_combo = self._add_combo(row1, "Lote", self.lote_var, [], 4, required=True)
         self.ubicacion_combo = self._add_combo(row1, "Ubicación Origen", self.ubicacion_var, self.ubicacion_options, 5)
@@ -253,6 +333,7 @@ class SalidasWindow:
         tk.Label(obs_left, text="Observaciones", bg="white").pack(anchor="w")
         self.obs_text = tk.Text(obs_left, height=3)
         self.obs_text.pack(fill="x", pady=(4, 0))
+        bind_uppercase(self.obs_text)
 
         obs_right = tk.Frame(row4, bg="white")
         obs_right.pack(side="right", padx=(10, 0), anchor="se")
@@ -268,6 +349,11 @@ class SalidasWindow:
             font=("Segoe UI", 11, "bold"), padx=28, pady=7,
         )
         self.save_btn.pack(side="left", expand=True, padx=6)
+        tk.Button(
+            actions, text="Limpiar", command=self._reset_form,
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat",
+            font=("Segoe UI", 11, "bold"), padx=28, pady=7,
+        ).pack(side="left", expand=True, padx=6)
         tk.Button(
             actions, text="Salir", command=self.window.destroy,
             bg=COLORS["primary"], fg=COLORS["text_light"], relief="flat",
@@ -393,7 +479,7 @@ class SalidasWindow:
 
     def _add_combo(
         self, parent: tk.Widget, label: str, variable: tk.StringVar,
-        options: list[str], col: int, required: bool = False,
+        options: list[str], col: int, required: bool = False, strict: bool = True,
     ) -> ttk.Combobox:
         frame = tk.Frame(parent, bg="white")
         frame.grid(row=0, column=col, padx=8, sticky="ew")
@@ -401,17 +487,79 @@ class SalidasWindow:
             make_required_label(frame, label).pack(anchor="w")
         else:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
-        combo = ttk.Combobox(frame, textvariable=variable, values=options, state="readonly")
+        combo = ttk.Combobox(frame, textvariable=variable, values=options, state="normal")
         combo.pack(fill="x", pady=(4, 0))
+        self._register_filterable_combo(combo, options, strict=strict)
         parent.columnconfigure(col, weight=1)
         return combo
+
+    def _register_filterable_combo(self, combo: ttk.Combobox, options: list[str], strict: bool = True) -> None:
+        source = [str(opt).strip() for opt in options if str(opt).strip()]
+        key = str(combo)
+        self._combo_sources[key] = source
+        if strict:
+            self._combo_strict.add(key)
+        else:
+            self._combo_strict.discard(key)
+        combo["values"] = source
+        combo.bind("<KeyRelease>", self._on_combo_key_release, add="+")
+        combo.bind("<FocusOut>", self._on_combo_focus_out, add="+")
+
+    def _set_combo_source(self, combo: ttk.Combobox, options: list[str]) -> None:
+        source = [str(opt).strip() for opt in options if str(opt).strip()]
+        self._combo_sources[str(combo)] = source
+        combo["values"] = source
+
+    def _is_combo_dropdown_open(self, combo: ttk.Combobox) -> bool:
+        try:
+            popdown = combo.tk.call("ttk::combobox::PopdownWindow", str(combo))
+            popup = combo.nametowidget(popdown)
+            return bool(popup.winfo_ismapped())
+        except Exception:
+            return False
+
+    def _on_combo_key_release(self, event: tk.Event) -> None:
+        """Permite navegación normal sin filtrar."""
+        combo = event.widget
+        if not isinstance(combo, ttk.Combobox):
+            return
+        
+        # Solo permitir navegación normal del dropdown
+        if event.keysym in {"Up", "Down", "Page_Up", "Page_Down"}:
+            return
+        
+        # Restaurar valores originales al terminar de editar
+        if event.keysym in {"Return", "Escape"}:
+            source = self._combo_sources.get(str(combo), [])
+            combo["values"] = source
+
+    def _on_combo_focus_out(self, event: tk.Event) -> None:
+        """Normaliza el valor cuando pierdes focus del combo."""
+        combo = event.widget
+        if not isinstance(combo, ttk.Combobox):
+            return
+
+        source = self._combo_sources.get(str(combo), [])
+        current = combo.get().strip()
+
+        # Solo limpiar combos estrictos.
+        if str(combo) in self._combo_strict and current and current not in source:
+            combo.set("")
+        
+        combo["values"] = source
 
     # ── bindings ───────────────────────────────────────────────
 
     def _bind_events(self) -> None:
         self.cantidad_var.trace_add("write", lambda *_: self._recalculate_new_stock())
         if self.codigo_combo is not None:
-            self.codigo_combo.bind("<<ComboboxSelected>>", self._on_code_selected)
+            bind_code_combo_autofill(
+                self.codigo_combo,
+                lambda: self._combo_sources.get(str(self.codigo_combo), self._available_codes()),
+                self._set_codigo_data,
+                self._clear_codigo_data,
+                clear_invalid_on_focus_out=False,
+            )
         if self.lote_combo is not None:
             self.lote_combo.bind("<<ComboboxSelected>>", self._on_lote_selected)
 
@@ -442,17 +590,28 @@ class SalidasWindow:
         if cleaned != val:
             var.set(cleaned)
 
-    def _on_code_selected(self, _event: tk.Event) -> None:
+    def _set_codigo_data(self, code: str) -> None:
+        self.codigo_var.set(code)
+        self._on_code_selected(None)
+
+    def _clear_codigo_data(self) -> None:
+        self.nombre_var.set("")
+        self.lote_var.set("")
+        if self.lote_combo is not None:
+            self._set_combo_source(self.lote_combo, [])
+        self._update_stock_display("", "")
+
+    def _on_code_selected(self, _event: tk.Event | None) -> None:
         code = self.codigo_var.get().strip()
         if not code:
             return
 
-        rec = self._first_entrada_for(code)
-        self.nombre_var.set(str(rec.get("nombre", "")) if rec else "")
+        selected = self._substance_for_code(code)
+        self.nombre_var.set(str(selected.get("nombre", "")) if selected else "")
 
         lotes = self._lotes_for_code(code)
         if self.lote_combo is not None:
-            self.lote_combo["values"] = lotes
+            self._set_combo_source(self.lote_combo, lotes)
 
         if lotes:
             self.lote_var.set(lotes[0])
@@ -470,17 +629,33 @@ class SalidasWindow:
         self.stock_actual_var.set(f"{stock:,.2f}")
 
         rec = self._first_entrada_for(codigo, lote)
+        location_options = self._location_options_for(codigo, lote)
+        if self.ubicacion_combo is not None:
+            self._set_combo_source(self.ubicacion_combo, location_options)
+            self.ubicacion_combo.configure(state="disabled")
+
         if rec:
-            unit = str(rec.get("unidad", ""))
+            unit = self.lkp.to_name("unidades", rec.get("id_unidad")) or str(rec.get("unidad", ""))
             self.unidad_stock_var.set(unit)
             self.unidad_var.set(unit)
             self.densidad_var.set(str(rec.get("densidad", "")))
-            self.ubicacion_var.set(str(rec.get("ubicacion", "")))
+            if location_options:
+                if self.ubicacion_var.get().strip() not in location_options:
+                    self.ubicacion_var.set(location_options[0])
+            else:
+                self.ubicacion_var.set(location_name(rec, self.locations_by_key))
 
             # Vigencia
             fv = str(rec.get("fecha_vencimiento", "")).strip()
             self.vigencia_var.set(fv)
             self._update_dias_vigencia(fv)
+        else:
+            self.unidad_stock_var.set("")
+            self.unidad_var.set("")
+            self.densidad_var.set("")
+            self.ubicacion_var.set("")
+            self.vigencia_var.set("")
+            self._update_dias_vigencia("")
 
         self._recalculate_new_stock()
 
@@ -604,9 +779,9 @@ class SalidasWindow:
             row = (
                 rec.get("id", ""),
                 rec.get("fecha_salida", ""),
-                rec.get("tipo_salida", ""),
-                rec.get("codigo", ""),
-                rec.get("nombre", ""),
+                self.lkp.to_name("tipos_salida", rec.get("id_tipo_salida")) or rec.get("tipo_salida", ""),
+                substance_code(rec, self.sustancias_by_id),
+                substance_name(rec, self.sustancias_by_id),
                 rec.get("lote", ""),
                 rec.get("cantidad", ""),
                 estado,
@@ -628,7 +803,7 @@ class SalidasWindow:
         for rec in reversed(records):
             if fecha and str(rec.get("fecha_salida", "")).strip() != fecha:
                 continue
-            if codigo and str(rec.get("codigo", "")).strip() != codigo:
+            if codigo and substance_code(rec, self.sustancias_by_id) != codigo:
                 continue
             if lote and str(rec.get("lote", "")).strip() != lote:
                 continue
@@ -637,9 +812,9 @@ class SalidasWindow:
             row = (
                 rec.get("id", ""),
                 rec.get("fecha_salida", ""),
-                rec.get("tipo_salida", ""),
-                rec.get("codigo", ""),
-                rec.get("nombre", ""),
+                self.lkp.to_name("tipos_salida", rec.get("id_tipo_salida")) or rec.get("tipo_salida", ""),
+                substance_code(rec, self.sustancias_by_id),
+                substance_name(rec, self.sustancias_by_id),
                 rec.get("lote", ""),
                 rec.get("cantidad", ""),
                 estado,
@@ -674,14 +849,20 @@ class SalidasWindow:
             return
 
         self.editing_id = rec_id
-        self.tipo_salida_var.set(record.get("tipo_salida", ""))
+        self.tipo_salida_var.set(
+            self.lkp.to_name("tipos_salida", record.get("id_tipo_salida"))
+            or record.get("tipo_salida", "")
+        )
         self.fecha_salida_var.set(record.get("fecha_salida", ""))
-        self.codigo_var.set(record.get("codigo", ""))
-        self.nombre_var.set(record.get("nombre", ""))
+        self.codigo_var.set(substance_code(record, self.sustancias_by_id))
+        self.nombre_var.set(substance_name(record, self.sustancias_by_id))
         self.lote_var.set(record.get("lote", ""))
-        self.ubicacion_var.set(record.get("ubicacion_origen", ""))
+        self.ubicacion_var.set(location_name(record, self.locations_by_key, "ubicacion_origen_tipo", "id_ubicacion_origen", "ubicacion_origen"))
         self.cantidad_var.set(str(record.get("cantidad", "")))
-        self.unidad_var.set(record.get("unidad", ""))
+        self.unidad_var.set(
+            self.lkp.to_name("unidades", record.get("id_unidad"))
+            or record.get("unidad", "")
+        )
         self.densidad_var.set(record.get("densidad", ""))
         self.peso_inicial_var.set(record.get("peso_inicial", ""))
         self.peso_final_var.set(record.get("peso_final", ""))
@@ -692,7 +873,7 @@ class SalidasWindow:
             self.obs_text.insert("1.0", record.get("observaciones", ""))
 
         # Actualizar stock display
-        code = record.get("codigo", "")
+        code = substance_code(record, self.sustancias_by_id)
         lote = record.get("lote", "")
         if code and lote:
             self._update_stock_display(code, lote)
@@ -719,7 +900,7 @@ class SalidasWindow:
             self._mb_showwarning("Aviso", "Este registro ya está anulado")
             return
 
-        codigo = str(record.get("codigo", "")).strip()
+        codigo = substance_code(record, self.sustancias_by_id).strip()
         lote = str(record.get("lote", "")).strip()
         cantidad = float(record.get("cantidad", 0))
 
@@ -799,16 +980,26 @@ class SalidasWindow:
         if self.obs_text is not None:
             observaciones = self.obs_text.get("1.0", tk.END).strip()
 
+        selected_sustancia = self._substance_for_code(codigo)
+        if selected_sustancia is None:
+            self._mb_showerror("Validacion", "La sustancia seleccionada no existe en la maestra")
+            return
+
+        ubicacion_tipo, id_ubicacion = self._selected_location_fields()
+
         salida_record = {
             "fecha_salida": self.fecha_salida_var.get().strip(),
-            "tipo_salida": self.tipo_salida_var.get().strip(),
-            "codigo": codigo,
-            "nombre": self.nombre_var.get().strip(),
+            "id_tipo_salida": self.lkp.to_id("tipos_salida", self.tipo_salida_var.get().strip()),
+            "id_sustancia": selected_sustancia.get("id"),
             "lote": lote,
             "cantidad": cantidad,
-            "unidad": self.unidad_var.get().strip() or self.unidad_stock_var.get().strip(),
+            "id_unidad": self.lkp.to_id(
+                "unidades",
+                self.unidad_var.get().strip() or self.unidad_stock_var.get().strip(),
+            ),
             "densidad": self.densidad_var.get().strip(),
-            "ubicacion_origen": self.ubicacion_var.get().strip(),
+            "ubicacion_origen_tipo": ubicacion_tipo,
+            "id_ubicacion_origen": id_ubicacion,
             "peso_inicial": self.peso_inicial_var.get().strip(),
             "peso_final": self.peso_final_var.get().strip(),
             "liquido": self.liquido_var.get(),
@@ -900,9 +1091,12 @@ class SalidasWindow:
             self.obs_text.delete("1.0", tk.END)
 
         if self.codigo_combo is not None:
-            self.codigo_combo["values"] = self._available_codes()
+            self._set_combo_source(self.codigo_combo, self._available_codes())
         if self.lote_combo is not None:
-            self.lote_combo["values"] = []
+            self._set_combo_source(self.lote_combo, [])
         if self.tipo_combo is not None:
-            self.tipo_combo["values"] = self.tipo_salida_options
+            self._set_combo_source(self.tipo_combo, self.tipo_salida_options)
+        if self.ubicacion_combo is not None:
+            self._set_combo_source(self.ubicacion_combo, self.ubicacion_options)
+            self.ubicacion_combo.configure(state="normal")
 

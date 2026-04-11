@@ -13,9 +13,12 @@ from config.config import (
 )
 from config.config import COLORS
 from ui.bitacora import BitacoraWindow
+from ui.checklist import CheckListWindow
 from ui.entradas import EntryFormWindow
 from ui.maestras import LocationMasterWindow, MasterCatalogWindow, SubstanceMasterWindow
+from ui.reportes import ReportesWindow
 from ui.salidas import SalidasWindow
+from ui.stock_analista import StockAnalistaWindow
 from ui.stock import StockWindow
 from ui.users import CreateUserWindow
 from ui.vigencias import VigenciasWindow
@@ -27,6 +30,8 @@ class MainMenuWindow:
     def __init__(self, root: tk.Tk, user: dict):
         self.root = root
         self.user = user
+        self.user_role = str(self.user.get("rol", "")).strip().lower()
+        self.user_perms = self.user.get("permisos", {}) if isinstance(self.user.get("permisos", {}), dict) else {}
         self.main_image_tk = None
         self.button_images = {}
         self._open_windows: list[tk.Toplevel] = []
@@ -124,8 +129,9 @@ class MainMenuWindow:
                 ("Salidas", self.open_salidas, "salidas"),
                 ("Vigencia", self.open_vigencias, "vigencias"),
                 ("Stock", self.open_stock, "stock"),
-                ("Usuarios", self.open_usuarios, "inventario"),
-                ("Reportes", self.open_bitacora, "auditoria"),
+                ("Stock Analista", self.open_stock_analista, "stock"),
+                ("Bitacora", self.open_bitacora, "auditoria"),
+                ("Reportes", self.open_reportes, "auditoria"),
             ],
         )
         self._create_panel_buttons(
@@ -135,6 +141,7 @@ class MainMenuWindow:
                 ("T. Entrada", self.open_tipo_entrada, "inventario"),
                 ("T. Salida", self.open_tipo_salida, "inventario"),
                 ("Proveedor", self.open_proveedor, "inventario"),
+                ("Usuarios", self.open_usuarios, "usuarios_admin"),
                 ("C. Almace", self.open_almacen, "inventario"),
                 ("Cond. Almac.", self.open_condicion_almac, "inventario"),
                 ("Unidad", self.open_unidad, "inventario"),
@@ -223,6 +230,7 @@ class MainMenuWindow:
             "Salidas": "imgSalida.png",
             "Vigencia": "imgVigencia.png",
             "Stock": "imgStock.png",
+            "Stock Analista": "imgReporte.png",
             "Usuarios": "imgUsuario.png",
             "Bitacora": "imgReporte.png",
             "Reportes": "imgReporte.png",
@@ -256,18 +264,14 @@ class MainMenuWindow:
         grid = tk.Frame(parent, bg="white")
         grid.pack(fill="x", padx=6, pady=6)
 
-        perms = self.user.get("permisos", {})
-        is_admin = str(self.user.get("rol", "")).lower() == "admin"
-
         for idx, (label, callback, perm_key) in enumerate(buttons):
             row = idx // 2
             col = idx % 2
-            has_access = is_admin or perms.get(perm_key, False)
+            has_access = self._has_permission(perm_key)
 
-            cmd = callback if has_access else self._no_access
-            fg = COLORS["text_dark"] if has_access else "#999999"
-            bg = "white" if has_access else "#E0E0E0"
-            state = "normal" if has_access else "disabled"
+            cmd = self._build_permission_command(label, perm_key, callback)
+            fg = COLORS["text_dark"] if has_access else "#5A5A5A"
+            bg = "white" if has_access else "#F1F1F1"
 
             # Cargar icono
             icon_tk = None
@@ -294,7 +298,8 @@ class MainMenuWindow:
                 anchor="w",
                 padx=8,
                 pady=3,
-                state=state,
+                state="normal",
+                disabledforeground="#5A5A5A",
             )
             btn.grid(row=row, column=col, padx=6, pady=8, sticky="nsew")
 
@@ -307,12 +312,28 @@ class MainMenuWindow:
         separator = tk.Frame(grid, bg="#D0D0D0", height=1)
         separator.grid(row=max_rows, column=0, columnspan=2, sticky="ew", pady=(6, 0))
 
+    def _has_permission(self, perm_key: str) -> bool:
+        if perm_key in {"inventario", "usuarios_admin"}:
+            return self.user_role == "admin"
+        if self.user_role == "admin":
+            return True
+        return bool(self.user_perms.get(perm_key, False))
+
+    def _build_permission_command(self, module_label: str, perm_key: str, callback):
+        def _command() -> None:
+            if not self._has_permission(perm_key):
+                self._no_access(module_label)
+                return
+            callback()
+
+        return _command
+
     def _can_open_window(self) -> bool:
         """Limita a 3 ventanas Toplevel abiertas simultáneamente."""
         self._open_windows = [w for w in self._open_windows if w.winfo_exists()]
         if len(self._open_windows) >= 3:
             import tkinter.messagebox as mb
-            mb.showwarning("Límite", "Ya tienes 3 ventanas abiertas. Cierra alguna para abrir otra.")
+            mb.showwarning("Límite", "Ya tienes 3 ventanas abiertas. Cierra alguna para abrir otra.", parent=self.root)
             return False
         return True
 
@@ -322,93 +343,163 @@ class MainMenuWindow:
         if win is not None:
             self._open_windows.append(win)
 
+    def _guard_access(self, perm_key: str, module_label: str) -> bool:
+        if not self._has_permission(perm_key):
+            self._no_access(module_label)
+            return False
+        return True
+
     def open_entradas(self) -> None:
+        if not self._guard_access("entradas", "Entradas"):
+            return
         if not self._can_open_window():
             return
-        w = EntryFormWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
+        import tkinter.messagebox as mb
+
+        do_checklist = mb.askyesno(
+            "Lista de Chequeo",
+            "¿Desea realizar lista de chequeo?",
+            parent=self.root,
+        )
+
+        if do_checklist:
+            def _on_checklist_saved(prefill: dict) -> None:
+                ew = EntryFormWindow(
+                    self.root,
+                    usuario=self.user.get("nombre", ""),
+                    rol=self.user.get("rol", ""),
+                    prefill=prefill,
+                )
+                self._track_window(ew)
+
+            w = CheckListWindow(self.root, usuario=self.user.get("nombre", ""), on_saved=_on_checklist_saved)
+        else:
+            w = EntryFormWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
         self._track_window(w)
 
     def open_salidas(self) -> None:
+        if not self._guard_access("salidas", "Salidas"):
+            return
         if not self._can_open_window():
             return
         w = SalidasWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
         self._track_window(w)
 
     def open_vigencias(self) -> None:
+        if not self._guard_access("vigencias", "Vigencias"):
+            return
         if not self._can_open_window():
             return
         w = VigenciasWindow(self.root, usuario=self.user.get("nombre", ""), rol=self.user.get("rol", ""))
         self._track_window(w)
 
     def open_stock(self) -> None:
+        if not self._guard_access("stock", "Stock"):
+            return
         if not self._can_open_window():
             return
         w = StockWindow(self.root)
         self._track_window(w)
 
+    def open_stock_analista(self) -> None:
+        if not self._guard_access("stock", "Stock Analista"):
+            return
+        if not self._can_open_window():
+            return
+        w = StockAnalistaWindow(self.root)
+        self._track_window(w)
+
     def open_usuarios(self) -> None:
+        if not self._guard_access("usuarios_admin", "Usuarios"):
+            return
         if not self._can_open_window():
             return
         w = CreateUserWindow(self.root)
         self._track_window(w)
 
     def open_bitacora(self) -> None:
+        if not self._guard_access("auditoria", "Reportes"):
+            return
         if not self._can_open_window():
             return
         w = BitacoraWindow(self.root)
         self._track_window(w)
 
+    def open_reportes(self) -> None:
+        if not self._guard_access("auditoria", "Reportes"):
+            return
+        if not self._can_open_window():
+            return
+        w = ReportesWindow(self.root)
+        self._track_window(w)
+
     def open_sustancias(self) -> None:
+        if not self._guard_access("inventario", "Sustancias"):
+            return
         if not self._can_open_window():
             return
         w = SubstanceMasterWindow(self.root)
         self._track_window(w)
 
     def open_tipo_entrada(self) -> None:
+        if not self._guard_access("inventario", "T. Entrada"):
+            return
         if not self._can_open_window():
             return
         w = MasterCatalogWindow(self.root, "T. Entrada", TIPOS_ENTRADA_FILE, "maestrasTiposEntrada", "nombre")
         self._track_window(w)
 
     def open_tipo_salida(self) -> None:
+        if not self._guard_access("inventario", "T. Salida"):
+            return
         if not self._can_open_window():
             return
         w = MasterCatalogWindow(self.root, "T. Salida", TIPOS_SALIDA_FILE, "maestrasTiposSalida", "nombre")
         self._track_window(w)
 
     def open_proveedor(self) -> None:
+        if not self._guard_access("inventario", "Proveedor"):
+            return
         if not self._can_open_window():
             return
         w = MasterCatalogWindow(self.root, "Proveedor", PROVEEDORES_FILE, "maestrasProveedores", "nombre")
         self._track_window(w)
 
     def open_almacen(self) -> None:
+        if not self._guard_access("inventario", "C. Almace"):
+            return
         if not self._can_open_window():
             return
         w = MasterCatalogWindow(self.root, "C. Almace", ALMACENES_FILE, "maestrasAlmacenes", "nombre")
         self._track_window(w)
 
     def open_unidad(self) -> None:
+        if not self._guard_access("inventario", "Unidad"):
+            return
         if not self._can_open_window():
             return
         w = MasterCatalogWindow(self.root, "Unidad", UNIDADES_FILE, "maestrasUnidades", "nombre")
         self._track_window(w)
 
     def open_ubicacion(self) -> None:
+        if not self._guard_access("inventario", "Ubicación"):
+            return
         if not self._can_open_window():
             return
         w = LocationMasterWindow(self.root)
         self._track_window(w)
 
     def open_condicion_almac(self) -> None:
+        if not self._guard_access("inventario", "Cond. Almac."):
+            return
         if not self._can_open_window():
             return
         w = MasterCatalogWindow(self.root, "Cond. Almac.", CONDICIONES_FILE, "maestrasCondicionesAlmacenamiento", "nombre")
         self._track_window(w)
 
-    def _no_access(self) -> None:
+    def _no_access(self, module_label: str = "este módulo") -> None:
         import tkinter.messagebox as mb
-        mb.showwarning("Acceso denegado", "No tiene permisos para acceder a este módulo.")
+        mb.showerror("Permisos insuficientes", f"No tienes permisos para acceder a {module_label}.", parent=self.root)
 
     def _logout(self) -> None:
         """Cierra la sesión y vuelve al login."""

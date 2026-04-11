@@ -1,8 +1,9 @@
+
 {
   "maestrasCondicionesAlmacenamiento": [
     {
       "id": 1,
-      "nombre": "(+15°C  a +25°C y +/- 60HR)"
+      "nombre": "(+15°C a +25°C y +/- 60HR)"
     },
     {
       "id": 2,
@@ -18,27 +19,735 @@
     },
     {
       "id": 5,
-      "nombre": "Almacenamiento entre 15°C y 25°C"
+      "nombre": "Alejado del calor, bien cerrado, fresco y bien ventilado"
     },
     {
       "id": 6,
-      "nombre": "Almacenar en un lugar fresco, seco y bien ventilado (10°C-30°C)"
+      "nombre": "Almacenamiento entre 15°C y 25°C"
     },
     {
       "id": 7,
-      "nombre": "Almacenar en un lugar fresco, seco y ventilado (entre 10°C Y 30°C +/- 60HR)"
+      "nombre": "Almacenar en envase hermeticamente cerrado en un lugar seco y bien ventilado, Mantengase alejados de fuentes de ignición. (2°C-30°C)"
     },
     {
       "id": 8,
-      "nombre": "Almacenar en un lugar seco y bien ventilado. (10° y 30°C)"
+      "nombre": "Almacenar en envase bien cerrado en un lugar fresco y seco. Entre 10°C y 30°C"
     },
     {
       "id": 9,
-      "nombre": "Bien cerrado, seco y ventilado (Temperatura de +2°C a +30°C y +/- 60HR)"
+      "nombre": "Almacenar en envase original, recipiente cerrado hermeticamente y mantenerlos en un lugar seco, fresco y bien ventilado, mantener alejado de la luz directa del sol mantengase separado del calor y de las fuentes de ignición 25°C y +/- 60HR"
     },
     {
       "id": 10,
+      "nombre": "Almacenar en un lugar fresco, seco y ventilado (entre 10°C Y 30°C +/- 60HR)"
+    },
+    {
+      "id": 11,
+      "nombre": "Almacenar en un lugar fresco, seco y bien ventilado (10°C-30°C)"
+    },
+    {
+      "id": 12,
+      "nombre": "Almacenar en un lugar fresco, seco y bien ventilado. Temperatura entre 15°C y 25°C"
+    },
+    {
+      "id": 13,
+      "nombre": "Almacenar en un lugar fresco, seco y bien ventilado. Temperatura entre 10°C y 30°C"
+    },
+    {
+      "id": 14,
+      "nombre": "Almacenar en un lugar fresco. Conservar el envase herméticamente cerrado en un lugar seco y bien ventilado (25°C Y +/-60HR)"
+    },
+    {
+      "id": 15,
+      "nombre": "Almacenar en un lugar seco y bien ventilado, lejos de fuentes de calor y luz solar. (5° y 35°C)"
+    },
+    {
+      "id": 16,
+      "nombre": "Almacenar en un lugar seco y bien ventilado. (10° y 30°C)"
+    },
+    {
+      "id": 17,
+      "nombre": "Almacenar en un lugar seco, fresco y bien ventilado. Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 18,
+      "nombre": "Almacenar en un lugar seco. (Entre 10°C - 30°C)"
+    },
+    {
+      "id": 19,
       "nombre": "Bien cerrado y seco (Entre +15°C a +25°C). Sensible a la luz"
+    },
+    {
+      "id": 20,
+      "nombre": "Bien cerrado (Entre 2°C-30°C)"
+    },
+    {
+      "id": 21,
+      "nombre": "Bien cerrado (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 22,
+      "nombre": "Bien Cerrado -20°C Freezer"
+    },
+    {
+      "id": 23,
+      "nombre": "Bien cerrado en un lugar fresco y bien ventilado. Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 24,
+      "nombre": "Bien cerrado y seco (Entre 2°C -30° C)"
+    },
+    {
+      "id": 25,
+      "nombre": "Bien cerrado y seco (Entre 2°C a +30°C)"
+    },
+    {
+      "id": 26,
+      "nombre": "Bien cerrado y seco (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 27,
+      "nombre": "Bien Cerrado y seco Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 28,
+      "nombre": "Bien cerrado y seco Temperatura: 2°C a 30°C"
+    },
+    {
+      "id": 29,
+      "nombre": "Bien cerrado y seco. (Temperatura entre +15 °C a +25°C y +/- 60HR)"
+    },
+    {
+      "id": 30,
+      "nombre": "Bien cerrado y seco. No usar recipientes metálicos. Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 31,
+      "nombre": "Bien cerrado y seco. Temperatura entre 2°C y 30°C"
+    },
+    {
+      "id": 32,
+      "nombre": "Bien cerrado y seco. Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 33,
+      "nombre": "Bien cerrado y seco. (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 34,
+      "nombre": "Bien Cerrado y seco. Temperatura entre 2°C y 30°C"
+    },
+    {
+      "id": 35,
+      "nombre": "Bien cerrado y seco. Temperatura Máx. 30°C"
+    },
+    {
+      "id": 36,
+      "nombre": "Bien cerrado y seco. Temperatura de 2°C a 30°C"
+    },
+    {
+      "id": 37,
+      "nombre": "Bien cerrado y seco. Temperatura entre 2° y 30°C"
+    },
+    {
+      "id": 38,
+      "nombre": "Bien cerrado y seco. Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 39,
+      "nombre": "Bien cerrado y seco. Temperatura: 15°C a 25°C"
+    },
+    {
+      "id": 40,
+      "nombre": "Bien cerrado y separado sólo con sustancias oxidantes. Mantener alejado de fuentes de ignición (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 41,
+      "nombre": "Bien cerrado y ventilado (Entre +2°C a +30°C)"
+    },
+    {
+      "id": 42,
+      "nombre": "Bien cerrado y ventilado no dejar el recipiente abierto."
+    },
+    {
+      "id": 43,
+      "nombre": "Bien cerrado y ventilado. Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 44,
+      "nombre": "Bien cerrado, alejado de sustancias inflamables, de fuentes de ignición y de calor (entre +2°C a +30°C y +/- 60HR higroscópico) No almacenar cerca de materiales combustibles."
+    },
+    {
+      "id": 45,
+      "nombre": "Bien cerrado, almacenar en atmósfera inerte. Higroscopico Máx. 2°C y 30°C"
+    },
+    {
+      "id": 46,
+      "nombre": "Bien cerrado, en lugar fresco, seco y bien ventilado Entre +15°C y +25°C y +/- 60 HR"
+    },
+    {
+      "id": 47,
+      "nombre": "Bien cerrado, en un lugar fresco y bien ventilado. Mantengase alejado del calor y fuentes de ignición"
+    },
+    {
+      "id": 48,
+      "nombre": "Bien cerrado, en un lugar frio, seco y ventilado Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 49,
+      "nombre": "Bien cerrado, en un lugar seco, proteger del calor y de la luz directa del sol, alejado de fuentes de ignición y de calor. (entre +2° y +8°C)"
+    },
+    {
+      "id": 50,
+      "nombre": "Bien cerrado, fresco, seco y ventilado (Entre +15°C a +25°C y +/- 60 HR)"
+    },
+    {
+      "id": 51,
+      "nombre": "Bien cerrado, fresco, seco y ventilado. Temperatura Entre +2°C y +8°C"
+    },
+    {
+      "id": 52,
+      "nombre": "Bien cerrado, limpio y seco. Evitar humedad y presencia de agua. Alejado de fuentes de calor. Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 53,
+      "nombre": "Bien cerrado, mantener en un lugar bien ventilado, no usar en recipientes metalicos."
+    },
+    {
+      "id": 54,
+      "nombre": "Bien cerrado, no almacenar cerca de material combustible (+2°C a +30 °C y +/- 60HR)"
+    },
+    {
+      "id": 55,
+      "nombre": "Bien cerrado, protegido de la luz, seco y ventilado. Mantener alejado de calor y fuentes de ignición (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 56,
+      "nombre": "Bien cerrado, Seco (+2°C a +30°C y +/- 60HR)"
+    },
+    {
+      "id": 57,
+      "nombre": "Bien cerrado, seco e higroscópico (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 58,
+      "nombre": "Bien cerrado, seco Temperatura (2°C Y 8°C)"
+    },
+    {
+      "id": 59,
+      "nombre": "Bien cerrado, seco y bien ventilado (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 60,
+      "nombre": "Bien cerrado, seco y sensible al aire. Higroscópico manipular y almacenar en atmósfera inerte (entre +2°C a +30°C y +/- 60HR)"
+    },
+    {
+      "id": 61,
+      "nombre": "Bien cerrado, seco y ventilado (entre +2°C a +30 °C y +/- 60HR)"
+    },
+    {
+      "id": 62,
+      "nombre": "Bien cerrado, seco y ventilado Mantengase alejado del calor y fuentes de ignición Entre +2°C y +30°C"
+    },
+    {
+      "id": 63,
+      "nombre": "Bien cerrado, seco y ventilado (entre +2°C a +30°C y +/- 60HR)"
+    },
+    {
+      "id": 64,
+      "nombre": "Bien cerrado, seco y ventilado (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 65,
+      "nombre": "Bien cerrado, seco y ventilado Temperatura entre 2°C y 30°C"
+    },
+    {
+      "id": 66,
+      "nombre": "Bien cerrado, seco y ventilado Temperatura: Entre 15°C- 25°C y +/- 60HR"
+    },
+    {
+      "id": 67,
+      "nombre": "bien cerrado, seco y ventilado, alejado de fuentes de ignición y de calor Temperatura: 2°C a 30°C"
+    },
+    {
+      "id": 68,
+      "nombre": "Bien cerrado, seco y ventilado. Mantener alejado del calor y de las fuentes de ignición (Entre +2°C a +30°C y +/- 60HR)"
+    },
+    {
+      "id": 69,
+      "nombre": "Bien cerrado, seco y ventilado. Mantener alejado del calor y fuentes de ignición (Entre: 10C°-30°C y +/- 60 HR)"
+    },
+    {
+      "id": 70,
+      "nombre": "Bien cerrado, seco y ventilado. Mantener alejado del calor y fuentes de ignición (Entre +2°C a +30°C y +/- 60 HR)"
+    },
+    {
+      "id": 71,
+      "nombre": "Bien cerrado, seco y ventilado. Mantener alejado del calor y fuentes de ignición. (Entre +2°C a +30°C y +/- 60HR)"
+    },
+    {
+      "id": 72,
+      "nombre": "Bien cerrado, seco y ventilado. Mantener alejado del calor y fuentes de ignición.( Entre 10°C-30°C y +/- 60 HR)"
+    },
+    {
+      "id": 73,
+      "nombre": "Bien cerrado, seco y ventilado. Mantengase alejado del calor y fuentes de ignición (Máx 25 °C. y +/- 60 HR)"
+    },
+    {
+      "id": 74,
+      "nombre": "Bien cerrado, seco y ventilado. (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 75,
+      "nombre": "Bien cerrado, seco y ventilado. Mantener alejado del calor y fuentes de ignición (Máx. 30°C y +/- 60HR)"
+    },
+    {
+      "id": 76,
+      "nombre": "Bien cerrado, seco y ventilado. Sensible a la luz y al aire. (Temperatura de +2°C a +30°C y +/- 60HR)"
+    },
+    {
+      "id": 77,
+      "nombre": "Bien cerrado, seco y ventilado. Temperatura entre 2°C y 30°C"
+    },
+    {
+      "id": 78,
+      "nombre": "Bien cerrado, seco, fresco y bien ventilado. Temperatura entre 10°C y 30°C"
+    },
+    {
+      "id": 79,
+      "nombre": "Bien cerrado, seco, fresco y bien ventilado Temperatura Entre 10°C y 25°C"
+    },
+    {
+      "id": 80,
+      "nombre": "Bien cerrado, seco, fresco y bien ventilado Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 81,
+      "nombre": "Bien cerrado, seco, fresco y ventilado (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 82,
+      "nombre": "Bien cerrado, seco, fresco y ventilado (No mas de 50°C y +/- 60HR)"
+    },
+    {
+      "id": 83,
+      "nombre": "Bien cerrado, seco, fresco y ventilado. Área de Sustancias Corrosivas (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 84,
+      "nombre": "Bien cerrado, seco, ventilado y protegido de la luz. Mantener alejado del calor y las fuentes de ignición. (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 85,
+      "nombre": "Bien cerrado, seco, ventilado y sensible a la luz (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 86,
+      "nombre": "Bien Cerrado."
+    },
+    {
+      "id": 87,
+      "nombre": "Bien cerrado. No almacenar cerca de material combustible, sensible a la humedad. (Entre +15°C a +25°C y +/- 60 HR)"
+    },
+    {
+      "id": 88,
+      "nombre": "Bien cerrado. No almacenar cerca de material combustible. (Temperatura Entre +2°C a +30°C)"
+    },
+    {
+      "id": 89,
+      "nombre": "Bien cerrado. Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 90,
+      "nombre": "Bien Cerrado. Entre +2°C y +30°C"
+    },
+    {
+      "id": 91,
+      "nombre": "Bien Cerrado. Maximo 30°C"
+    },
+    {
+      "id": 92,
+      "nombre": "Bien cerrado. No almacenar cerca de materiales combustibles (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 93,
+      "nombre": "Bien cerrado. seco 2°C - 30°C"
+    },
+    {
+      "id": 94,
+      "nombre": "Bien cerrado. seco 2°C- 8°C"
+    },
+    {
+      "id": 95,
+      "nombre": "Bien cerrado. seco y Ventilado"
+    },
+    {
+      "id": 96,
+      "nombre": "Bien cerrado. Seco Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 97,
+      "nombre": "Bien Cerrado. Temperatura ambiente"
+    },
+    {
+      "id": 98,
+      "nombre": "Bien cerrado. Temperatura ambiente. No almacenar junto ácidos Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 99,
+      "nombre": "Bien cerredo, seco, es higroscópico. Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 100,
+      "nombre": "Bien cerrrado y seco. Temperatura: (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 101,
+      "nombre": "Bien cerrrado y seco. Temperatura entre 2°C y 30°C"
+    },
+    {
+      "id": 102,
+      "nombre": "Bien cerrrado y seco. Temperatura: Máx. 30°C"
+    },
+    {
+      "id": 103,
+      "nombre": "Bien tapado en un lugar ventilado, seco y fresco."
+    },
+    {
+      "id": 104,
+      "nombre": "Cerrar bien, seco y ventilado. Mantener alejado del calor y de fuentes de ignición (Entre +15°C a +25°C y +/- 60 HR)"
+    },
+    {
+      "id": 105,
+      "nombre": "Cerrar hermeticamente, seco y fresco. (Proteger del calor, luz directa del sol, del agua y humedad) Atmosfera inerte"
+    },
+    {
+      "id": 106,
+      "nombre": "Conservar el envase herméticamente cerrado en un lugar seco y bien ventilado, alejado del calor y de las fuentes de ignición. (Entre 2°C- 30°C)"
+    },
+    {
+      "id": 107,
+      "nombre": "Conservar el envase hermeticamente cerrado en un lugar seco y bien ventilado. Manténgase alejado del calor de las fuentes de ignición (Entre +5°C y +30°C)"
+    },
+    {
+      "id": 108,
+      "nombre": "Conservar herméticamente cerrado en un lugar seco y bien ventilado Entre: >0< 35°C"
+    },
+    {
+      "id": 109,
+      "nombre": "Consérvese únicamente en el recipiente de origen, en un lugar fresco y bien ventilado. Mantengase el recipiente en lugar seco. Conservar alejado del calor. Mantener alejado de la luz directa del sol. (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 110,
+      "nombre": "Entre +15°C y +25°C"
+    },
+    {
+      "id": 111,
+      "nombre": "Entre +15°C y +25°C y +/- 60 HR"
+    },
+    {
+      "id": 112,
+      "nombre": "Entre +2°C y +30°C y +/- 60 HR"
+    },
+    {
+      "id": 113,
+      "nombre": "Entre +2ºC y +8ºC"
+    },
+    {
+      "id": 114,
+      "nombre": "Entre +5°C y +30°C"
+    },
+    {
+      "id": 115,
+      "nombre": "Entre +5°C y +30°C y +/- 60 HR"
+    },
+    {
+      "id": 116,
+      "nombre": "Entre +5°C y +35°C y +/- 60 HR"
+    },
+    {
+      "id": 117,
+      "nombre": "Entre +5°C y +8°C"
+    },
+    {
+      "id": 118,
+      "nombre": "Entre +5ºC y +8ºC"
+    },
+    {
+      "id": 119,
+      "nombre": "Entre 10°C y +30°C y +/- 60 HR"
+    },
+    {
+      "id": 120,
+      "nombre": "Entre 15 - 20°C."
+    },
+    {
+      "id": 121,
+      "nombre": "Entre 2 - 8 °C"
+    },
+    {
+      "id": 122,
+      "nombre": "Entre 2°C-8°C"
+    },
+    {
+      "id": 123,
+      "nombre": "Entre 2ºC a 8ºC"
+    },
+    {
+      "id": 124,
+      "nombre": "Entre 4°C-30° C y +/- 60HR"
+    },
+    {
+      "id": 125,
+      "nombre": "Entre 5°C y 30°C"
+    },
+    {
+      "id": 126,
+      "nombre": "Higroscópico. Temperatura: Entre +15°C y +25°C."
+    },
+    {
+      "id": 127,
+      "nombre": "Lugar seco y ventilado Alejado de sustancias incompatibles, proteger de daños físicos (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 128,
+      "nombre": "Lugar seco, fresco, bien ventilado y cerrado. No almacenar cerca de materiales combustibles. (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 129,
+      "nombre": "Mantener bien cerrado y seco (2°C-30°C)"
+    },
+    {
+      "id": 130,
+      "nombre": "Mantener bien cerrado y seco. 30°C"
+    },
+    {
+      "id": 131,
+      "nombre": "Mantener bien cerrado y seco. Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 132,
+      "nombre": "Mantener bien cerrado y seco.( 2°C-30°C)"
+    },
+    {
+      "id": 133,
+      "nombre": "Mantener bien cerrado, alejado de fuentes calor y de fuentes de ignición (15 °C -25°C)"
+    },
+    {
+      "id": 134,
+      "nombre": "Mantener bien cerrado, protegido de la luz y seco. Por debajo de 30°C"
+    },
+    {
+      "id": 135,
+      "nombre": "Mantener bien cerrado, seco y bien ventilado. (2°C-30°C)"
+    },
+    {
+      "id": 136,
+      "nombre": "Mantener bien cerrado, seco y ventilado. Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 137,
+      "nombre": "Mantener bien cerrado, ventilado y seco."
+    },
+    {
+      "id": 138,
+      "nombre": "Mantener cerrado herméticamente"
+    },
+    {
+      "id": 139,
+      "nombre": "Mantener cerrado herméticamente (2-8°C)"
+    },
+    {
+      "id": 140,
+      "nombre": "Mantener cerrado, fresco, seco y bien ventilado. Alejado de Agentes oxidantes fuertes."
+    },
+    {
+      "id": 141,
+      "nombre": "Mantener el envase bien cerrado en ambiente seco, fresco a temperatura ambiente. Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 142,
+      "nombre": "Mantener el recipiente bien cerrado en un lugar fresco y seco, evitar fuentes de calor, radiación, electricidad estática y el contacto con alimentos. Entre 10°C y 30°C"
+    },
+    {
+      "id": 143,
+      "nombre": "Mantener el recipiente cerrado en un lugar fresco, seco y bien ventilado."
+    },
+    {
+      "id": 144,
+      "nombre": "Mantener el recipiente cerrado en un lugar fresco, seco y bien ventilado. (almacenar en atmosfera inerte)"
+    },
+    {
+      "id": 145,
+      "nombre": "Mantener el recipiente cerrado herméticamente Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 146,
+      "nombre": "Mantener el recipiente cerrado herméticamente. Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 147,
+      "nombre": "Mantener el recipiente cerrado, temperatura ambiente (Máx. 25°C y +/- 60HR)."
+    },
+    {
+      "id": 148,
+      "nombre": "Mantener el recipiente cerrado. Temperatura Ambiente."
+    },
+    {
+      "id": 149,
+      "nombre": "Mantener en envase original, evitar restos del producto en el exterior del recipiente. Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 150,
+      "nombre": "Mantener en un lugar fresco, seco y bien cerrado alejado de fuentes de ignición proteger del calor y la luz Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 151,
+      "nombre": "Mantener en un lugar fresco, seco y bien cerrado. (10°C -30°C)"
+    },
+    {
+      "id": 152,
+      "nombre": "Mantener en un lugar fresco, seco y ventilado ( Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 153,
+      "nombre": "Mantener en un lugar fresco, seco y ventilado, mantener alejado de fuentes de calor e ignición. Entre +2°C y +25°C"
+    },
+    {
+      "id": 154,
+      "nombre": "Mantener los contenedores perfectamente cerrados en un lugar fresco, seco y bien ventilado. Mantener alejado del calor, chispas y llamas (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 155,
+      "nombre": "Mantener por debajo de 30°C bien cerrado y lejos de la luz brillante."
+    },
+    {
+      "id": 156,
+      "nombre": "Mantener recipiente cerrado (Temperatura Ambiente) Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 157,
+      "nombre": "Mantener recipiente cerrado Temperatura Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 158,
+      "nombre": "Mantener siempre en los envases originales, herméticamente cerrados, en un lugar bien ventilado. Almacene a temperatura ambiente (Temperatura Ambiente: >0< 35°C) Proteger del agua y de la humedad del aire."
+    },
+    {
+      "id": 159,
+      "nombre": "Manter recipiente cerrado hermeticamente, lugar ventilado (T° ambiente) Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 160,
+      "nombre": "Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 161,
+      "nombre": "Máx. 25°C y +/- 60HR Bien cerrado. Seco."
+    },
+    {
+      "id": 162,
+      "nombre": "Máx. 25ºC Protegido de la Humedad"
+    },
+    {
+      "id": 163,
+      "nombre": "Máx. 30°C y +/- 60HR"
+    },
+    {
+      "id": 164,
+      "nombre": "No almacenar en recipientes de aluminio, estaño o zinc. No usar recipientes metálicos. Mantener Bien cerrado y Seco. Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 165,
+      "nombre": "No almacenar junto con metales, Recipiente cerrado hermeticamente Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 166,
+      "nombre": "No usar recipientes Metálicos, Bien cerrado Entre +15°C y +25°C"
+    },
+    {
+      "id": 167,
+      "nombre": "Protegido de la luz, bien cerrado y seco. Temperatura de 2°C a 30°C"
+    },
+    {
+      "id": 168,
+      "nombre": "Protegido de la luz, bien cerrado y seco. No almacenar con ácidos. Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 169,
+      "nombre": "Protegido de la luz, Bien cerrado, Seco (2°-30°C)"
+    },
+    {
+      "id": 170,
+      "nombre": "Protegido de la luz, bien cerrado, seco y ventilado (entre +5°C a +30 °C y +/- 60HR)"
+    },
+    {
+      "id": 171,
+      "nombre": "Protegido de la luz, bien cerrado. seco y ventilado"
+    },
+    {
+      "id": 172,
+      "nombre": "Protegido de la luz, cerrado y seco Temperatura Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 173,
+      "nombre": "Protegido de la luz, herméticamente cerrado en un lugar seco y bien ventilado, alejado de fuentes de ignición (Entre 2°C a 30°C)"
+    },
+    {
+      "id": 174,
+      "nombre": "Protegido de la luz. Bien cerrado."
+    },
+    {
+      "id": 175,
+      "nombre": "Protejido de la luz, Bien cerrado y Seco. Temperatura entre 15°C -25°C"
+    },
+    {
+      "id": 176,
+      "nombre": "Protejido de la luz, bien cerrado, seco Manténgase el recipiente en un lugar bien ventilado (Máx. 30°C y +/- 60HR)"
+    },
+    {
+      "id": 177,
+      "nombre": "Recipiente bien cerrado, Temperatura Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 178,
+      "nombre": "Temperatura Ambiente (Entre. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 179,
+      "nombre": "Temperatura (10°C-30°C)"
+    },
+    {
+      "id": 180,
+      "nombre": "Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 181,
+      "nombre": "Temperatura: Máx. 25°C y +/- 60HR"
+    },
+    {
+      "id": 182,
+      "nombre": "Temperatura 2-8°C"
+    },
+    {
+      "id": 183,
+      "nombre": "Temperatura Ambiente (Entre 25°C y +/- 60HR)"
+    },
+    {
+      "id": 184,
+      "nombre": "Temperatura Ambiente (Máx. 25°C y +/- 60HR)"
+    },
+    {
+      "id": 185,
+      "nombre": "Temperatura Ambiente. Máx. 25°C"
+    },
+    {
+      "id": 186,
+      "nombre": "Temperatura: Entre 10°C- 30°C"
+    },
+    {
+      "id": 187,
+      "nombre": "Temperatura: Entre 15°C y 25°C"
     }
   ]
 }

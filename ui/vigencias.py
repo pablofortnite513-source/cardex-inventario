@@ -2,10 +2,30 @@ import tkinter as tk
 from datetime import date, datetime
 from tkinter import messagebox, ttk
 
-from config.config import COLORS, ENTRADAS_FILE, INVENTARIO_FILE, SALIDAS_FILE, TIPOS_SALIDA_FILE
+from config.config import (
+    COLORS,
+    ENTRADAS_FILE,
+    INVENTARIO_FILE,
+    PROVEEDORES_FILE,
+    SALIDAS_FILE,
+    SUSTANCIAS_FILE,
+    TIPOS_SALIDA_FILE,
+    UBICACIONES_FILE,
+    UBICACIONES_USO_FILE,
+    UNIDADES_FILE,
+)
 from ui.bitacora import registrar_bitacora
 from ui.styles import build_header
-from utils.data_handler import DataHandler, sync_inventario
+from utils.data_handler import (
+    DataHandler,
+    Lookups,
+    build_location_indexes,
+    build_substance_indexes,
+    location_name,
+    substance_code,
+    substance_name,
+    sync_inventario,
+)
 
 
 class VigenciasWindow:
@@ -22,6 +42,7 @@ class VigenciasWindow:
         self.search_var = tk.StringVar()
         self.tree: ttk.Treeview | None = None
         self.estado_label: tk.Label | None = None
+        self.row_records: dict[str, dict] = {}
 
         self.detail_vars = {
             "codigo": tk.StringVar(),
@@ -45,6 +66,20 @@ class VigenciasWindow:
         ]
         if not self.tipo_salida_options:
             self.tipo_salida_options = ["Consumo", "Transferencia", "Ajuste", "Merma"]
+
+        tipos_salida_cat = tipos_data.get("maestrasTiposSalida", [])
+        unidades_cat = DataHandler.load_json(UNIDADES_FILE).get("maestrasUnidades", [])
+        proveedores_cat = DataHandler.load_json(PROVEEDORES_FILE).get("maestrasProveedores", [])
+        sustancias_cat = DataHandler.load_json(SUSTANCIAS_FILE).get("maestrasSustancias", [])
+        ubicaciones_cat = DataHandler.load_json(UBICACIONES_FILE).get("maestrasUbicaciones", [])
+        ubicaciones_uso_cat = DataHandler.load_json(UBICACIONES_USO_FILE).get("maestrasUbicacionesUso", [])
+        self.lkp = Lookups(
+            tipos_salida=tipos_salida_cat,
+            unidades=unidades_cat,
+            proveedores=proveedores_cat,
+        )
+        self.sustancias_by_id, _ = build_substance_indexes(sustancias_cat)
+        self.locations_by_key, _ = build_location_indexes(ubicaciones_cat, ubicaciones_uso_cat)
 
         self._build_ui()
         self.load_table()
@@ -262,13 +297,13 @@ class VigenciasWindow:
         estado = self._status_for_days(days)
 
         return (
-            record.get("codigo", ""),
-            record.get("nombre", ""),
+            substance_code(record, self.sustancias_by_id),
+            substance_name(record, self.sustancias_by_id),
             record.get("lote", ""),
             exp.strftime("%Y-%m-%d") if exp else "",
             stock,
-            record.get("unidad", ""),
-            record.get("proveedor", record.get("fabricante", "")),
+            self.lkp.to_name("unidades", record.get("id_unidad")) or record.get("unidad", ""),
+            self.lkp.to_name("proveedores", record.get("id_proveedor")) or record.get("proveedor", record.get("fabricante", "")),
             days if days is not None else "",
             estado,
         )
@@ -279,21 +314,21 @@ class VigenciasWindow:
         except (TypeError, ValueError):
             return 0.0
 
-    def _compute_stock_map(self) -> dict[tuple[str, str], float]:
-        """Calcula stock por (codigo, lote) = Sum(entradas.total) - Sum(salidas.cantidad)."""
+    def _compute_stock_map(self) -> dict[tuple[object, str], float]:
+        """Calcula stock por (id_sustancia, lote) = Sum(entradas.total) - Sum(salidas.cantidad)."""
         entradas = DataHandler.get_all(ENTRADAS_FILE, "entradas")
         salidas = DataHandler.get_all(SALIDAS_FILE, "salidas")
 
-        smap: dict[tuple[str, str], float] = {}
+        smap: dict[tuple[object, str], float] = {}
         for r in entradas:
             if r.get("anulado", False):
                 continue
-            key = (str(r.get("codigo", "")).strip(), str(r.get("lote", "")).strip())
+            key = (r.get("id_sustancia", r.get("codigo", "")), str(r.get("lote", "")).strip())
             smap[key] = smap.get(key, 0.0) + self._safe_float(r.get("total", 0))
         for r in salidas:
             if r.get("anulado", False):
                 continue
-            key = (str(r.get("codigo", "")).strip(), str(r.get("lote", "")).strip())
+            key = (r.get("id_sustancia", r.get("codigo", "")), str(r.get("lote", "")).strip())
             smap[key] = smap.get(key, 0.0) - self._safe_float(r.get("cantidad", 0))
         return smap
 
@@ -306,23 +341,25 @@ class VigenciasWindow:
         stock_map = self._compute_stock_map()
 
         # Agrupar entradas por (codigo, lote) para mostrar una fila por combinación
-        seen: set[tuple[str, str]] = set()
+        seen: set[tuple[object, str]] = set()
         unique_records: list[tuple[dict, float]] = []
         for record in entradas:
             if record.get("anulado", False):
                 continue
-            key = (str(record.get("codigo", "")).strip(), str(record.get("lote", "")).strip())
+            key = (record.get("id_sustancia", record.get("codigo", "")), str(record.get("lote", "")).strip())
             if key not in seen:
                 seen.add(key)
                 unique_records.append((record, round(stock_map.get(key, 0.0), 6)))
 
         self.tree.delete(*self.tree.get_children())
+        self.row_records.clear()
 
         for record, stock in unique_records:
             row = self._build_row(record, stock)
             if query and query not in str(row).lower():
                 continue
-            self.tree.insert("", tk.END, values=row)
+            item_id = self.tree.insert("", tk.END, values=row)
+            self.row_records[item_id] = record
 
     def sort_by_days(self) -> None:
         if self.tree is None:
@@ -424,6 +461,7 @@ class VigenciasWindow:
             items.append({
                 "codigo": codigo, "nombre": nombre, "lote": lote,
                 "cantidad": cantidad, "unidad": unidad,
+                "record": self.row_records.get(item_id, {}),
             })
 
         if not items:
@@ -439,16 +477,17 @@ class VigenciasWindow:
 
         fecha_hoy = date.today().strftime("%Y-%m-%d")
         for it in items:
+            raw_record = it.get("record", {})
             salida = {
                 "fecha_salida": fecha_hoy,
-                "tipo_salida": tipo_salida,
-                "codigo": it["codigo"],
-                "nombre": it["nombre"],
+                "id_tipo_salida": self.lkp.to_id("tipos_salida", tipo_salida),
+                "id_sustancia": raw_record.get("id_sustancia"),
                 "lote": it["lote"],
                 "cantidad": it["cantidad"],
-                "unidad": it["unidad"],
+                "id_unidad": self.lkp.to_id("unidades", it["unidad"]),
                 "densidad": "",
-                "ubicacion_origen": "",
+                "ubicacion_origen_tipo": raw_record.get("ubicacion_tipo", ""),
+                "id_ubicacion_origen": raw_record.get("id_ubicacion"),
                 "peso_inicial": "",
                 "peso_final": "",
                 "liquido": False,

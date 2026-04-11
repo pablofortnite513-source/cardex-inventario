@@ -1,6 +1,150 @@
 import json
 import os
+import unicodedata
 from typing import Any, Dict, List, Optional
+
+
+class Lookups:
+    """Diccionarios de resolución ID ↔ nombre para catálogos maestros.
+
+    Uso:
+        lkp = Lookups(unidades=lista_unidades, proveedores=lista_proveedores)
+        nombre = lkp.to_name("unidades", 1)   # → "Litro"
+        id_    = lkp.to_id("unidades", "Litro")  # → 1
+    """
+
+    def __init__(self, **catalogs: list) -> None:
+        self._fwd: Dict[str, Dict[int, str]] = {}   # catalog → {id: nombre}
+        self._rev: Dict[str, Dict[str, int]] = {}   # catalog → {nombre: id}
+        for cat, records in catalogs.items():
+            fwd: Dict[int, str] = {}
+            rev: Dict[str, int] = {}
+            for r in records:
+                rid = r.get("id")
+                name = str(r.get("nombre", "")).strip()
+                if rid is not None:
+                    fwd[rid] = name
+                if name:
+                    rev[name] = rid
+            self._fwd[cat] = fwd
+            self._rev[cat] = rev
+
+    def to_name(self, catalog: str, record_id, default: str = "") -> str:
+        """Devuelve el nombre correspondiente al ID, o default si no se encuentra."""
+        if record_id is None:
+            return default
+        return self._fwd.get(catalog, {}).get(record_id, default)
+
+    def to_id(self, catalog: str, name: str) -> Optional[int]:
+        """Devuelve el ID correspondiente al nombre, o None si no se encuentra."""
+        if not name:
+            return None
+        return self._rev.get(catalog, {}).get(name.strip())
+
+
+def _normalize_text(value: Any) -> str:
+    text = str(value or "").strip()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return text.lower()
+
+
+def build_substance_indexes(records: List[Dict[str, Any]]) -> tuple[Dict[int, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    by_id: Dict[int, Dict[str, Any]] = {}
+    by_code: Dict[str, Dict[str, Any]] = {}
+    for record in records:
+        record_id = record.get("id")
+        code = str(record.get("codigo", "")).strip()
+        if record_id is not None:
+            by_id[record_id] = record
+        if code:
+            by_code[_normalize_text(code)] = record
+    return by_id, by_code
+
+
+def substance_from_id(records_by_id: Dict[int, Dict[str, Any]], substance_id: Any) -> Dict[str, Any] | None:
+    if substance_id is None:
+        return None
+    return records_by_id.get(substance_id)
+
+
+def substance_from_code(records_by_code: Dict[str, Dict[str, Any]], code: str) -> Dict[str, Any] | None:
+    norm = _normalize_text(code)
+    if not norm:
+        return None
+    return records_by_code.get(norm)
+
+
+def substance_code(record: Dict[str, Any], records_by_id: Dict[int, Dict[str, Any]]) -> str:
+    substance = substance_from_id(records_by_id, record.get("id_sustancia"))
+    if substance is not None:
+        return str(substance.get("codigo", ""))
+    return str(record.get("codigo", ""))
+
+
+def substance_name(record: Dict[str, Any], records_by_id: Dict[int, Dict[str, Any]]) -> str:
+    substance = substance_from_id(records_by_id, record.get("id_sustancia"))
+    if substance is not None:
+        return str(substance.get("nombre", ""))
+    return str(record.get("nombre", ""))
+
+
+def substance_code_system(record: Dict[str, Any], records_by_id: Dict[int, Dict[str, Any]]) -> str:
+    substance = substance_from_id(records_by_id, record.get("id_sustancia"))
+    if substance is not None:
+        return str(substance.get("codigo_sistema", ""))
+    return str(record.get("codigo_contable", ""))
+
+
+def substance_cas(record: Dict[str, Any], records_by_id: Dict[int, Dict[str, Any]]) -> str:
+    substance = substance_from_id(records_by_id, record.get("id_sustancia"))
+    if substance is not None:
+        return str(substance.get("codigo_cas", ""))
+    return str(record.get("cas", ""))
+
+
+def build_location_indexes(
+    ubicaciones: List[Dict[str, Any]],
+    ubicaciones_uso: List[Dict[str, Any]],
+) -> tuple[Dict[tuple[str, int], Dict[str, Any]], Dict[str, tuple[str, int]]]:
+    by_key: Dict[tuple[str, int], Dict[str, Any]] = {}
+    by_name: Dict[str, tuple[str, int]] = {}
+
+    for tipo, records in (("almacen", ubicaciones), ("uso", ubicaciones_uso)):
+        for record in records:
+            record_id = record.get("id")
+            name = str(record.get("nombre", "")).strip()
+            if record_id is None:
+                continue
+            key = (tipo, record_id)
+            by_key[key] = record
+            if name:
+                by_name[_normalize_text(name)] = key
+
+    return by_key, by_name
+
+
+def location_tuple_from_name(by_name: Dict[str, tuple[str, int]], name: str) -> tuple[str, int] | None:
+    norm = _normalize_text(name)
+    if not norm:
+        return None
+    return by_name.get(norm)
+
+
+def location_name(
+    record: Dict[str, Any],
+    locations_by_key: Dict[tuple[str, int], Dict[str, Any]],
+    tipo_field: str = "ubicacion_tipo",
+    id_field: str = "id_ubicacion",
+    legacy_field: str = "ubicacion",
+) -> str:
+    tipo = record.get(tipo_field)
+    record_id = record.get(id_field)
+    if tipo and record_id is not None:
+        target = locations_by_key.get((str(tipo), record_id))
+        if target is not None:
+            return str(target.get("nombre", ""))
+    return str(record.get(legacy_field, ""))
 
 
 def sync_inventario(entradas_file, salidas_file, inventario_file):
@@ -13,7 +157,7 @@ def sync_inventario(entradas_file, salidas_file, inventario_file):
     for e in entradas:
         if e.get("anulado"):
             continue
-        key = (e.get("codigo", ""), e.get("lote", ""))
+        key = (e.get("id_sustancia") or e.get("codigo", ""), e.get("lote", ""))
         total = 0
         try:
             total = float(e.get("total", 0))
@@ -21,14 +165,14 @@ def sync_inventario(entradas_file, salidas_file, inventario_file):
             total = 0
         if key not in stock:
             stock[key] = {
-                "codigo": e.get("codigo", ""),
-                "nombre": e.get("nombre", ""),
+                "id_sustancia": e.get("id_sustancia"),
                 "lote": e.get("lote", ""),
-                "unidad": e.get("unidad", ""),
-                "ubicacion": e.get("ubicacion", ""),
-                "proveedor": e.get("proveedor", ""),
+                "id_unidad": e.get("id_unidad"),
+                "ubicacion_tipo": e.get("ubicacion_tipo"),
+                "id_ubicacion": e.get("id_ubicacion"),
+                "id_proveedor": e.get("id_proveedor"),
                 "fecha_vencimiento": e.get("fecha_vencimiento", ""),
-                "condicion_almacenamiento": e.get("condicion_almacenamiento", ""),
+                "id_condicion_almacenamiento": e.get("id_condicion_almacenamiento"),
                 "presentacion": e.get("presentacion", ""),
                 "stock": 0,
             }
@@ -37,7 +181,7 @@ def sync_inventario(entradas_file, salidas_file, inventario_file):
     for s in salidas:
         if s.get("anulado"):
             continue
-        key = (s.get("codigo", ""), s.get("lote", ""))
+        key = (s.get("id_sustancia") or s.get("codigo", ""), s.get("lote", ""))
         cant = 0
         try:
             cant = float(s.get("cantidad", 0))
