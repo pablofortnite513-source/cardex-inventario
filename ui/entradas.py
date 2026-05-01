@@ -988,7 +988,11 @@ class EntryFormWindow:
         self.history_tree.delete(*self.history_tree.get_children())
         for rec in page_rows:
             anulado = rec.get("anulado", False)
-            estado = "ANULADO" if anulado else "Activo"
+            if anulado:
+                motivo = rec.get("motivo_anulacion", "")
+                estado = f"ANULADO: {motivo[:30]}" if motivo else "ANULADO"
+            else:
+                estado = "Activo"
             row = (
                 rec.get("id", ""),
                 rec.get("fecha", ""),
@@ -1315,6 +1319,10 @@ class EntryFormWindow:
             self._mb_showerror("Validacion", "La sustancia seleccionada no existe en la maestra")
             self.window.config(cursor=original_cursor)
             return
+        if selected_sustancia.get("id") is None:
+            self._mb_showerror("Validacion", "La sustancia no tiene un ID válido")
+            self.window.config(cursor=original_cursor)
+            return
         if not bool(selected_sustancia.get("habilitada", True)):
             self._mb_showerror("Validacion", "La sustancia está inhabilitada. No se pueden crear entradas.")
             self.window.config(cursor=original_cursor)
@@ -1337,7 +1345,7 @@ class EntryFormWindow:
         record = {
             "id_tipo_entrada": self.lkp.to_id("tipos_entrada", self.tipo_entrada_var.get().strip()),
             "fecha": self.fecha_entrada_var.get().strip(),
-            "id_sustancia": selected_sustancia.get("id"),
+            "id_sustancia": id_sustancia,
             "lote": self.lote_var.get().strip(),
             "cantidad": cantidad,
             "presentacion": self.presentacion_var.get().strip(),

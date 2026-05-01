@@ -927,7 +927,11 @@ class SalidasWindow:
         self.history_tree.delete(*self.history_tree.get_children())
         for rec in page_rows:
             anulado = rec.get("anulado", False)
-            estado = "ANULADO" if anulado else "Activo"
+            if anulado:
+                motivo = rec.get("motivo_anulacion", "")
+                estado = f"ANULADO: {motivo[:30]}" if motivo else "ANULADO"
+            else:
+                estado = "Activo"
             row = (
                 rec.get("id", ""),
                 rec.get("fecha_salida", ""),
@@ -1130,10 +1134,16 @@ class SalidasWindow:
             self._mb_showerror("Validacion", "La sustancia seleccionada no existe en la maestra")
             self.window.config(cursor=original_cursor)
             return
+        if selected_sustancia.get("id") is None:
+            self._mb_showerror("Validacion", "La sustancia no tiene un ID válido")
+            self.window.config(cursor=original_cursor)
+            return
         if not bool(selected_sustancia.get("habilitada", True)):
             self._mb_showerror("Validacion", "La sustancia está inhabilitada. No se pueden crear salidas.")
             self.window.config(cursor=original_cursor)
             return
+
+        id_sustancia = selected_sustancia.get("id")
 
         if self.editing_id is not None:
             old_record = next(
@@ -1165,7 +1175,7 @@ class SalidasWindow:
         salida_record = {
             "fecha_salida": self.fecha_salida_var.get().strip(),
             "id_tipo_salida": self.lkp.to_id("tipos_salida", self.tipo_salida_var.get().strip()),
-            "id_sustancia": selected_sustancia.get("id"),
+            "id_sustancia": id_sustancia,
             "lote": lote,
             "cantidad": cantidad,
             "id_unidad": self.lkp.to_id(

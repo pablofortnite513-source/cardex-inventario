@@ -6,8 +6,9 @@ Soporta dos motores:
   - SQL Server (produccion, via pyodbc)
 
 Uso:
-    from database import get_db
+    from database import get_db, init_db_hybrid
 
+    init_db_hybrid()  # Inicializa la base de datos (crea tablas si no existen)
     db = get_db()
     sustancias = db.get_sustancias()
     db.close()
@@ -57,6 +58,55 @@ def _cargar_config() -> dict:
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(CONFIG_DEFAULT, f, indent=4, ensure_ascii=False)
     return CONFIG_DEFAULT
+
+
+# ============================================================================
+# FUNCION HIBRIDA: init_db_hybrid()
+# ============================================================================
+
+def init_db_hybrid():
+    """
+    Inicializa la base de datos configurada en config.json.
+    Crea todas las tablas e índices de forma compatible con SQLite y SQL Server.
+    Es idempotente: se puede llamar multiples veces sin errores.
+    """
+    cfg = _cargar_config()
+    motor = cfg.get("motor", "sqlite").lower()
+
+    if motor == "sqlserver":
+        if not _PYODBC_DISPONIBLE:
+            raise RuntimeError("pyodbc no esta instalado. Instala con: pip install pyodbc")
+        sc = cfg["sqlserver"]
+        if sc.get("trusted_connection"):
+            conn_str = (
+                f"DRIVER={{{sc['driver']}}};"
+                f"SERVER={sc['server']};"
+                f"DATABASE={sc['database']};"
+                "Trusted_Connection=yes;"
+            )
+        else:
+            conn_str = (
+                f"DRIVER={{{sc['driver']}}};"
+                f"SERVER={sc['server']};"
+                f"DATABASE={sc['database']};"
+                f"UID={sc['username']};PWD={sc['password']};"
+            )
+        conn = pyodbc.connect(conn_str)
+        _init_schema_sqlserver(conn)
+        conn.close()
+        return
+
+    # SQLite
+    sqlite_cfg = cfg.get("sqlite", {})
+    db_path = sqlite_cfg.get("path", "data/kardex_reactivos.db")
+    if not os.path.isabs(db_path):
+        db_path = os.path.join(_ruta_base(), db_path)
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    _init_schema_sqlite(conn)
+    conn.close()
 
 
 # -- Creacion de esquema -------------------------------------------------------
@@ -324,6 +374,283 @@ def _migrar_schema(conn):
     conn.commit()
 
 
+def _init_schema_sqlite(conn):
+    """Crea y migra esquema SQLite de forma idempotente."""
+    _init_schema(conn)
+    _migrar_schema(conn)
+
+
+def _init_schema_sqlserver(conn):
+    """Crea todas las tablas para SQL SERVER si no existen. Idempotente."""
+    cursor = conn.cursor()
+
+    tables = [
+        ("proveedores", """
+            CREATE TABLE proveedores (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                nombre NVARCHAR(255) NOT NULL,
+                habilitada INT NOT NULL DEFAULT 1
+            )
+        """),
+        ("unidades", """
+            CREATE TABLE unidades (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                nombre NVARCHAR(255) NOT NULL,
+                habilitada INT NOT NULL DEFAULT 1
+            )
+        """),
+        ("condiciones_almacenamiento", """
+            CREATE TABLE condiciones_almacenamiento (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                nombre NVARCHAR(255) NOT NULL,
+                habilitada INT NOT NULL DEFAULT 1
+            )
+        """),
+        ("almacenes", """
+            CREATE TABLE almacenes (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                nombre NVARCHAR(255) NOT NULL,
+                habilitada INT NOT NULL DEFAULT 1
+            )
+        """),
+        ("tipos_entrada", """
+            CREATE TABLE tipos_entrada (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                nombre NVARCHAR(255) NOT NULL,
+                habilitada INT NOT NULL DEFAULT 1
+            )
+        """),
+        ("tipos_salida", """
+            CREATE TABLE tipos_salida (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                nombre NVARCHAR(255) NOT NULL,
+                habilitada INT NOT NULL DEFAULT 1
+            )
+        """),
+        ("ubicaciones", """
+            CREATE TABLE ubicaciones (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                nombre NVARCHAR(255) NOT NULL,
+                habilitada INT NOT NULL DEFAULT 1
+            )
+        """),
+        ("ubicaciones_uso", """
+            CREATE TABLE ubicaciones_uso (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                nombre NVARCHAR(255) NOT NULL,
+                habilitada INT NOT NULL DEFAULT 1
+            )
+        """),
+        ("sustancias", """
+            CREATE TABLE sustancias (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                codigo NVARCHAR(100) NOT NULL UNIQUE,
+                nombre NVARCHAR(255) NOT NULL,
+                codigo_cas NVARCHAR(100),
+                controlada NVARCHAR(50),
+                limite_minimo_control NVARCHAR(100),
+                codigo_sistema NVARCHAR(100),
+                cantidad_minima_stock FLOAT NOT NULL DEFAULT 0,
+                ubicacion_tipo NVARCHAR(50),
+                id_ubicacion INT,
+                id_unidad INT,
+                habilitada INT NOT NULL DEFAULT 1
+            )
+        """),
+        ("usuarios", """
+            CREATE TABLE usuarios (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                usuario NVARCHAR(100) NOT NULL UNIQUE,
+                contrasena NVARCHAR(255) NOT NULL,
+                nombre NVARCHAR(255),
+                rol NVARCHAR(50),
+                estado NVARCHAR(50) NOT NULL DEFAULT 'HABILITADA',
+                firma_path NVARCHAR(500),
+                firma_password NVARCHAR(255)
+            )
+        """),
+        ("permisos_usuario", """
+            CREATE TABLE permisos_usuario (
+                id_usuario INT PRIMARY KEY REFERENCES usuarios(id),
+                inventario INT NOT NULL DEFAULT 0,
+                entradas INT NOT NULL DEFAULT 0,
+                salidas INT NOT NULL DEFAULT 0,
+                stock INT NOT NULL DEFAULT 0,
+                consulta INT NOT NULL DEFAULT 0,
+                vigencias INT NOT NULL DEFAULT 0,
+                auditoria INT NOT NULL DEFAULT 0
+            )
+        """),
+        ("entradas", """
+            CREATE TABLE entradas (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                id_tipo_entrada INT REFERENCES tipos_entrada(id),
+                fecha NVARCHAR(20),
+                id_sustancia INT REFERENCES sustancias(id),
+                lote NVARCHAR(100),
+                cantidad FLOAT,
+                presentacion NVARCHAR(100),
+                total FLOAT,
+                id_unidad INT REFERENCES unidades(id),
+                id_proveedor INT REFERENCES proveedores(id),
+                concentracion NVARCHAR(100),
+                densidad NVARCHAR(100),
+                costo_unitario NVARCHAR(50),
+                costo_total NVARCHAR(50),
+                factura NVARCHAR(100),
+                certificado INT NOT NULL DEFAULT 0,
+                msds INT NOT NULL DEFAULT 0,
+                fecha_vencimiento NVARCHAR(20),
+                fecha_documento NVARCHAR(20),
+                vigencia_documento NVARCHAR(20),
+                id_condicion_almacenamiento INT REFERENCES condiciones_almacenamiento(id),
+                ubicacion_tipo NVARCHAR(50),
+                id_ubicacion INT,
+                observaciones NVARCHAR(MAX),
+                anulado INT NOT NULL DEFAULT 0,
+                motivo_anulacion NVARCHAR(MAX)
+            )
+        """),
+        ("salidas", """
+            CREATE TABLE salidas (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                fecha_salida NVARCHAR(20),
+                id_tipo_salida INT REFERENCES tipos_salida(id),
+                id_sustancia INT REFERENCES sustancias(id),
+                lote NVARCHAR(100),
+                cantidad FLOAT,
+                id_unidad INT REFERENCES unidades(id),
+                densidad NVARCHAR(100),
+                ubicacion_origen_tipo NVARCHAR(50),
+                id_ubicacion_origen INT,
+                peso_inicial NVARCHAR(50),
+                peso_final NVARCHAR(50),
+                liquido INT NOT NULL DEFAULT 0,
+                en_uso INT NOT NULL DEFAULT 1,
+                observaciones NVARCHAR(MAX),
+                anulado INT NOT NULL DEFAULT 0,
+                motivo_anulacion NVARCHAR(MAX)
+            )
+        """),
+        ("bitacora", """
+            CREATE TABLE bitacora (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                fecha_hora NVARCHAR(30) NOT NULL DEFAULT CONVERT(NVARCHAR(30), GETDATE(), 120),
+                usuario NVARCHAR(100),
+                tipo_operacion NVARCHAR(100),
+                hoja NVARCHAR(100),
+                id_registro NVARCHAR(100),
+                campo NVARCHAR(255),
+                valor_anterior NVARCHAR(MAX),
+                valor_nuevo NVARCHAR(MAX)
+            )
+        """),
+        ("checklists", """
+            CREATE TABLE checklists (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                fecha_recepcion NVARCHAR(20),
+                id_proveedor INT REFERENCES proveedores(id),
+                orden_compra NVARCHAR(100),
+                id_sustancia INT REFERENCES sustancias(id),
+                codigo_producto NVARCHAR(100),
+                lote NVARCHAR(100),
+                cantidad FLOAT,
+                observacion_producto NVARCHAR(MAX),
+                observaciones NVARCHAR(MAX),
+                aprobo NVARCHAR(255),
+                reviso NVARCHAR(255),
+                verifico NVARCHAR(255),
+                usuario NVARCHAR(100),
+                estado NVARCHAR(50) NOT NULL DEFAULT 'ACTIVO'
+            )
+        """),
+        ("checklist_items", """
+            CREATE TABLE checklist_items (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                id_checklist INT REFERENCES checklists(id),
+                item NVARCHAR(255),
+                respuesta NVARCHAR(50)
+            )
+        """),
+    ]
+
+    for table_name, create_sql in tables:
+        cursor.execute(f"""
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '{table_name}')
+            BEGIN
+                {create_sql}
+            END
+        """)
+
+    indexes = [
+        ("idx_entradas_sustancia", "entradas", "id_sustancia"),
+        ("idx_salidas_sustancia", "salidas", "id_sustancia"),
+        ("idx_bitacora_fecha", "bitacora", "fecha_hora"),
+    ]
+    for idx_name, table_name, column in indexes:
+        cursor.execute(f"""
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = '{idx_name}')
+            CREATE INDEX {idx_name} ON {table_name}({column})
+        """)
+
+    cursor.execute("""
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'ux_entradas_sustancia_lote')
+        CREATE UNIQUE INDEX ux_entradas_sustancia_lote ON entradas(id_sustancia, lote)
+        WHERE anulado = 0 AND lote IS NOT NULL AND lote <> ''
+    """)
+
+    _migrar_schema_sqlserver(conn)
+    conn.commit()
+
+
+def _migrar_schema_sqlserver(conn):
+    """Agrega columnas faltantes a tablas existentes para SQL Server."""
+    cursor = conn.cursor()
+
+    def _col_existe(tabla: str, columna: str) -> bool:
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM sys.columns
+            WHERE object_id = OBJECT_ID('{tabla}') AND name = '{columna}'
+        """)
+        return cursor.fetchone()[0] > 0
+
+    extra = {
+        "sustancias": [
+            ("controlada", "NVARCHAR(50)"),
+            ("limite_minimo_control", "NVARCHAR(100)"),
+            ("codigo_cas", "NVARCHAR(100)"),
+            ("ubicacion_tipo", "NVARCHAR(50)"),
+            ("id_ubicacion", "INT"),
+            ("id_unidad", "INT"),
+        ],
+        "entradas": [
+            ("factura", "NVARCHAR(100)"),
+            ("certificado", "INT NOT NULL DEFAULT 0"),
+            ("msds", "INT NOT NULL DEFAULT 0"),
+        ],
+        "salidas": [
+            ("anulado", "INT NOT NULL DEFAULT 0"),
+            ("motivo_anulacion", "NVARCHAR(MAX)"),
+        ],
+        "bitacora": [
+            ("hoja", "NVARCHAR(100)"),
+        ],
+        "checklists": [
+            ("codigo_producto", "NVARCHAR(100)"),
+        ],
+    }
+
+    for tabla, cols in extra.items():
+        for col, tipo in cols:
+            if not _col_existe(tabla, col):
+                try:
+                    cursor.execute(f"ALTER TABLE {tabla} ADD {col} {tipo}")
+                except Exception:
+                    pass
+
+    conn.commit()
+
+
 # ============================================================================
 # FUNCION PRINCIPAL: get_db()
 # ============================================================================
@@ -352,6 +679,7 @@ def get_db() -> "KardexDB":
                 f"UID={sc['username']};PWD={sc['password']};"
             )
         conn = pyodbc.connect(conn_str)
+        _init_schema_sqlserver(conn)
         return KardexDB(conn, motor="sqlserver")
 
     # SQLite (predeterminado)
@@ -363,8 +691,7 @@ def get_db() -> "KardexDB":
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    _init_schema(conn)
-    _migrar_schema(conn)
+    _init_schema_sqlite(conn)
     return KardexDB(conn, motor="sqlite")
 
 
@@ -407,7 +734,7 @@ class KardexDB:
             return ""
 
     def _ph(self) -> str:
-        return "?" if self._motor == "sqlite" else "%s"
+        return "?"
 
     def _execute(self, sql: str, params: tuple = ()):
         self._cursor.execute(sql, params)
@@ -433,7 +760,7 @@ class KardexDB:
         self._execute(sql, params)
         self._conn.commit()
         if self._motor == "sqlserver":
-            row = self._fetchone("SELECT @@IDENTITY AS id")
+            row = self._fetchone("SELECT SCOPE_IDENTITY() AS id")
             return int(row["id"]) if row else 0
         return self._cursor.lastrowid
 
@@ -881,7 +1208,10 @@ class KardexDB:
             if campo == "id":
                 continue
             sets.append(f"{campo}={ph}")
-            vals.append(1 if valor else 0 if campo in bool_fields else valor)
+            if campo in bool_fields:
+                vals.append(1 if valor else 0)
+            else:
+                vals.append(valor)
         if not sets:
             return
         vals.append(id_)
@@ -1034,12 +1364,26 @@ class KardexDB:
         ph = self._ph()
         campos = self._PERM_CAMPOS
         vals = [int(bool(permisos.get(c, False))) for c in campos]
-        cols = ",".join(campos)
-        phs = ",".join([ph] * len(campos))
-        self._execute(
-            f"INSERT OR REPLACE INTO permisos_usuario (id_usuario,{cols}) VALUES ({ph},{phs})",
-            (id_usuario, *vals),
-        )
+        cols = ", ".join(campos)
+        if self._motor == "sqlserver":
+            sets = ", ".join([f"{c}={ph}" for c in campos])
+            insert_cols = f"id_usuario, {cols}"
+            insert_phs = ", ".join([ph] * (1 + len(campos)))
+            self._execute(
+                f"""
+                IF EXISTS (SELECT 1 FROM permisos_usuario WHERE id_usuario={ph})
+                    UPDATE permisos_usuario SET {sets} WHERE id_usuario={ph}
+                ELSE
+                    INSERT INTO permisos_usuario ({insert_cols}) VALUES ({insert_phs})
+                """,
+                (*vals, id_usuario, id_usuario, *vals),
+            )
+        else:
+            phs = ",".join([ph] * len(campos))
+            self._execute(
+                f"INSERT OR REPLACE INTO permisos_usuario (id_usuario,{','.join(campos)}) VALUES ({ph},{phs})",
+                (id_usuario, *vals),
+            )
         self.commit()
 
     def _actualizar_permisos(self, id_usuario: int, permisos: dict):

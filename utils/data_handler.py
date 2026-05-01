@@ -173,7 +173,7 @@ def location_name(record, locations_by_key, tipo_field="ubicacion_tipo",
 
 
 def sync_inventario(entradas_file=None, salidas_file=None, inventario_file=None):
-    """No-op: el stock se calcula directamente desde entradas y salidas."""
+    """DEPRECATED: El stock se calcula en tiempo real desde entradas y salidas."""
     pass
 
 

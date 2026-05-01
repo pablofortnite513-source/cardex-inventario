@@ -6,6 +6,7 @@ Prototipo funcional v1.0
 
 import tkinter as tk
 import tkinter.messagebox as mb
+from database import init_db_hybrid
 from ui.login import LoginWindow
 
 
@@ -41,6 +42,8 @@ def _install_messagebox_parent_fallback(root: tk.Tk) -> None:
 
 
 def main():
+    init_db_hybrid()
+
     root = tk.Tk()
     root.title("CECIF - Kardex Reactivos")
     root.geometry("600x400")
