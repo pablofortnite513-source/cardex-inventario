@@ -27,6 +27,13 @@ DATA_PATH = PROJECT_ROOT / "data"
 REPORTES_PATH = PROJECT_ROOT / "reportes"
 IMAGES_PATH = PROJECT_ROOT / "Imagenes"
 FIRMAS_PATH = PROJECT_ROOT / "firmas"
+
+# Base de datos SQLite (única fuente de datos)
+DB_PATH = DATA_PATH / "kardex_reactivos.db"
+
+# Rutas JSON heredadas – se mantienen como constantes simbólicas para que
+# el adaptador data_handler las use como claves de enrutamiento.  Ya NO
+# apuntan a archivos reales; las operaciones se redirigen a la base de datos.
 USERS_FILE = DATA_PATH / "usuarios.json"
 SUSTANCIAS_FILE = DATA_PATH / "maestrasSustancias.json"
 PROVEEDORES_FILE = DATA_PATH / "maestrasProveedores.json"

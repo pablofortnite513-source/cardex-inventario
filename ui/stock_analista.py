@@ -1,6 +1,6 @@
 import tkinter as tk
 from datetime import date
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 
 from config.config import (
     COLORS,
@@ -34,14 +34,25 @@ except ImportError:
 
 
 class StockAnalistaWindow:
-    """Genera reporte de stock para analista usando plantilla fija."""
+    """Vista y exportación de stock para analista usando plantilla fija."""
 
     def __init__(self, parent: tk.Tk):
         self.window = tk.Toplevel(parent)
         self.window.title("Stock Analista")
-        self.window.geometry("680x240")
+        self.window.geometry("1440x620")
         self.window.configure(bg=COLORS["secondary"])
+
+        self.search_var = tk.StringVar()
+        self.tree: ttk.Treeview | None = None
+        self._tree_columns: tuple[str, ...] = ()
+        self._tree_base_widths: dict[str, int] = {}
+        self.pagina_actual = 1
+        self.total_paginas = 1
+        self.por_pagina_var = tk.StringVar(value="50")
+        self.pag_label: tk.Label | None = None
+
         self._build_ui()
+        self.load_table()
 
     def _build_ui(self) -> None:
         wrapper = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=12, pady=12)
@@ -49,18 +60,132 @@ class StockAnalistaWindow:
 
         build_header(wrapper, "Sistema de Gestión  -  Stock Analista")
 
-        tk.Label(
-            wrapper,
-            text="Genera un Excel continuo basado en template_reporteanalista.xlsx",
-            bg="white",
+        search_row = tk.Frame(wrapper, bg="white")
+        search_row.pack(fill="x", pady=(6, 8))
+
+        search_entry = tk.Entry(search_row, textvariable=self.search_var)
+        search_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        search_entry.bind("<Return>", lambda _e: self.load_table())
+
+        tk.Button(
+            search_row,
+            text="Buscar",
+            command=self.load_table,
+            bg=COLORS["primary"],
+            fg=COLORS["text_light"],
+            relief="flat",
+            padx=16,
+            pady=5,
+        ).pack(side="left", padx=(0, 8))
+
+        tk.Button(
+            search_row,
+            text="Actualizar",
+            command=self.load_table,
+            bg=COLORS["border"],
             fg=COLORS["text_dark"],
-            font=("Segoe UI", 10),
-            anchor="w",
-            justify="left",
-        ).pack(fill="x", pady=(10, 16))
+            relief="flat",
+            padx=16,
+            pady=5,
+        ).pack(side="left")
+
+        columns = (
+            "codigo", "cas", "nombre", "lote", "unidad", "entrada", "presentacion",
+            "stock", "ubicacion", "fecha_vencimiento", "proveedor", "lote_uso",
+            "tipo_entrada", "concentracion", "densidad",
+        )
+        self._tree_columns = columns
+
+        tree_frame = tk.Frame(wrapper, bg="white")
+        tree_frame.pack(expand=True, fill="both")
+        tree_frame.rowconfigure(0, weight=1)
+        tree_frame.columnconfigure(0, weight=1)
+
+        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=16)
+        tree_scroll_y = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        tree_scroll_x = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=tree_scroll_y.set, xscrollcommand=tree_scroll_x.set)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        tree_scroll_y.grid(row=0, column=1, sticky="ns")
+        tree_scroll_x.grid(row=1, column=0, sticky="ew")
+
+        headings = {
+            "codigo": "Código",
+            "cas": "CAS",
+            "nombre": "Nombre",
+            "lote": "Lote",
+            "unidad": "Unidad",
+            "entrada": "Entrada",
+            "presentacion": "Presentación",
+            "stock": "Stock",
+            "ubicacion": "Ubicación",
+            "fecha_vencimiento": "F. Vencimiento",
+            "proveedor": "Proveedor",
+            "lote_uso": "Lote Uso",
+            "tipo_entrada": "Tipo Entrada",
+            "concentracion": "Concentración",
+            "densidad": "Densidad",
+        }
+        widths = {
+            "codigo": 90,
+            "cas": 120,
+            "nombre": 240,
+            "lote": 95,
+            "unidad": 70,
+            "entrada": 90,
+            "presentacion": 100,
+            "stock": 90,
+            "ubicacion": 130,
+            "fecha_vencimiento": 110,
+            "proveedor": 160,
+            "lote_uso": 90,
+            "tipo_entrada": 130,
+            "concentracion": 120,
+            "densidad": 90,
+        }
+
+        for col in columns:
+            self.tree.heading(col, text=headings[col])
+            self.tree.column(col, width=widths[col], minwidth=max(60, int(widths[col] * 0.5)), anchor="w", stretch=True)
+        self._tree_base_widths = widths
+        self.tree.bind("<Configure>", self._on_tree_resize, add="+")
+
+        pag_frame = tk.Frame(wrapper, bg="white")
+        pag_frame.pack(fill="x", padx=2, pady=(6, 2))
+        tk.Button(
+            pag_frame, text="◄ Primera", command=lambda: self._ir_pagina(1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+        tk.Button(
+            pag_frame, text="Anterior", command=lambda: self._ir_pagina(self.pagina_actual - 1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+
+        self.pag_label = tk.Label(pag_frame, text="Página 1 de 1", bg="white", font=("Segoe UI", 9))
+        self.pag_label.pack(side="left", padx=10)
+
+        tk.Button(
+            pag_frame, text="Siguiente", command=lambda: self._ir_pagina(self.pagina_actual + 1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+        tk.Button(
+            pag_frame, text="Última ►", command=lambda: self._ir_pagina(self.total_paginas),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left")
+
+        tk.Label(pag_frame, text="Mostrar:", bg="white").pack(side="left", padx=(15, 4))
+        por_pagina_combo = ttk.Combobox(
+            pag_frame,
+            textvariable=self.por_pagina_var,
+            values=["20", "50", "100", "200"],
+            state="readonly",
+            width=6,
+        )
+        por_pagina_combo.pack(side="left", padx=(0, 4))
+        por_pagina_combo.bind("<<ComboboxSelected>>", lambda _e: self._cambiar_por_pagina())
 
         actions = tk.Frame(wrapper, bg="white")
-        actions.pack(fill="x")
+        actions.pack(fill="x", pady=(10, 0))
 
         tk.Button(
             actions,
@@ -83,6 +208,59 @@ class StockAnalistaWindow:
             padx=20,
             pady=7,
         ).pack(side="right")
+
+    def _on_tree_resize(self, event: tk.Event) -> None:
+        if self.tree is None or not self._tree_columns:
+            return
+        total_base = sum(self._tree_base_widths.get(col, 1) for col in self._tree_columns)
+        if total_base <= 0:
+            return
+        width = max(event.width - 20, 800)
+        for col in self._tree_columns:
+            ratio = self._tree_base_widths.get(col, 1) / total_base
+            target = int(width * ratio)
+            self.tree.column(col, width=max(60, target), stretch=True)
+
+    def load_table(self) -> None:
+        if self.tree is None:
+            return
+        query = self.search_var.get().strip().lower()
+        rows = _build_stock_analista_rows()
+
+        filtered_rows: list[list] = []
+        for row in rows:
+            if query and query not in str(row).lower():
+                continue
+            filtered_rows.append(row)
+
+        try:
+            por_pagina = max(1, int(self.por_pagina_var.get().strip()))
+        except ValueError:
+            por_pagina = 50
+            self.por_pagina_var.set("50")
+
+        total = len(filtered_rows)
+        self.total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+        self.pagina_actual = max(1, min(self.pagina_actual, self.total_paginas))
+        start = (self.pagina_actual - 1) * por_pagina
+        end = start + por_pagina
+
+        self.tree.delete(*self.tree.get_children())
+        for row in filtered_rows[start:end]:
+            self.tree.insert("", tk.END, values=row)
+
+        if self.pag_label is not None:
+            self.pag_label.config(text=f"Página {self.pagina_actual} de {self.total_paginas}")
+
+    def _ir_pagina(self, pagina: int) -> None:
+        if pagina < 1 or pagina > self.total_paginas:
+            return
+        self.pagina_actual = pagina
+        self.load_table()
+
+    def _cambiar_por_pagina(self) -> None:
+        self.pagina_actual = 1
+        self.load_table()
 
     def generate_report(self) -> None:
         if load_workbook is None:
@@ -206,6 +384,8 @@ def _build_stock_analista_rows() -> list[list]:
             fallback = substance_from_code(sustancias_by_code, str(record.get("codigo", "")))
             if fallback is not None:
                 cas = str(fallback.get("codigo_cas", ""))
+        if not cas:
+            cas = "N/D"
 
         row = [
             substance_code(record, sustancias_by_id),

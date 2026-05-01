@@ -92,15 +92,22 @@ class EntryFormWindow:
         self._combo_tooltip: tk.Toplevel | None = None
         self._combo_tooltip_label: tk.Label | None = None
         self._tooltip_bound_combos: set[str] = set()
+        self._tooltip_active = False
         self.fecha_entrada_de: DateEntry | None = None
         self.fecha_venc_de: DateEntry | None = None
         self.fecha_doc_de: DateEntry | None = None
+        self.pagina_actual = 1
+        self.total_paginas = 1
+        self.por_pagina_var = tk.StringVar(value="50")
+        self.pag_label: tk.Label | None = None
 
         self._prefill = prefill or {}
         self._load_catalogs()
         self._build_ui()
         self.window.after_idle(self._clear_default_dates)
         self._bind_events()
+        self.window.bind("<Escape>", lambda _e: self._on_close())
+        self.window.protocol("WM_DELETE_WINDOW", self._on_close)
         if self._prefill:
             self._apply_prefill()
 
@@ -153,6 +160,7 @@ class EntryFormWindow:
     # ── UI ─────────────────────────────────────────────────────
 
     def _on_mousewheel(self, event) -> None:
+        self._hide_combo_tooltip()
         try:
             if self._canvas.winfo_exists():
                 self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
@@ -172,7 +180,14 @@ class EntryFormWindow:
         wrapper = tk.Frame(self._canvas, bg="white", padx=14, pady=14)
         wrapper.bind("<Configure>", lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
         self._canvas_window = self._canvas.create_window((0, 0), window=wrapper, anchor="nw")
-        self._canvas.bind("<Configure>", lambda e: self._canvas.itemconfigure(self._canvas_window, width=e.width))
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+        self._canvas.bind(
+            "<Configure>",
+            lambda e: (
+                self._canvas.itemconfigure(self._canvas_window, width=e.width),
+                self._canvas.configure(scrollregion=self._canvas.bbox("all")),
+            ),
+        )
 
         self._canvas.bind("<Enter>", lambda e: self._canvas.bind_all("<MouseWheel>", self._on_mousewheel))
         self._canvas.bind("<Leave>", lambda e: self._canvas.unbind_all("<MouseWheel>"))
@@ -338,6 +353,10 @@ class EntryFormWindow:
             filter_row, text="Borrar filtros", command=self._clear_history_filters,
             bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=12, pady=3,
         ).pack(side="left")
+        tk.Button(
+            filter_row, text="⟳ Refrescar", command=self._load_history,
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=12, pady=3,
+        ).pack(side="left", padx=(4, 0))
 
         hist_cols = ("id", "fecha", "codigo", "nombre", "lote", "total", "unidad", "estado")
         tree_container = tk.Frame(hist_frame, bg="white")
@@ -354,10 +373,44 @@ class EntryFormWindow:
             ("nombre", "Nombre", 200), ("lote", "Lote", 100), ("total", "Total", 80),
             ("unidad", "Unidad", 70), ("estado", "Estado", 90),
         ]:
-            self.history_tree.heading(col, text=heading)
-            self.history_tree.column(col, width=width, anchor="w")
+            self.history_tree.heading(col, text=heading, command=lambda c=col: self._sort_column(c, False))
+            self.history_tree.column(col, width=width, minwidth=max(50, int(width * 0.6)), anchor="w", stretch=True)
 
         self.history_tree.tag_configure("anulado", foreground="#999999")
+
+        pag_frame = tk.Frame(hist_frame, bg="white")
+        pag_frame.pack(fill="x", padx=6, pady=(2, 4))
+        tk.Button(
+            pag_frame, text="◄ Primera", command=lambda: self._ir_pagina(1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+        tk.Button(
+            pag_frame, text="Anterior", command=lambda: self._ir_pagina(self.pagina_actual - 1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+
+        self.pag_label = tk.Label(pag_frame, text="Página 1 de 1", bg="white", font=("Segoe UI", 9))
+        self.pag_label.pack(side="left", padx=10)
+
+        tk.Button(
+            pag_frame, text="Siguiente", command=lambda: self._ir_pagina(self.pagina_actual + 1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+        tk.Button(
+            pag_frame, text="Última ►", command=lambda: self._ir_pagina(self.total_paginas),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left")
+
+        tk.Label(pag_frame, text="Mostrar:", bg="white").pack(side="left", padx=(15, 4))
+        por_pagina_combo = ttk.Combobox(
+            pag_frame,
+            textvariable=self.por_pagina_var,
+            values=["20", "50", "100", "200"],
+            state="readonly",
+            width=6,
+        )
+        por_pagina_combo.pack(side="left", padx=(0, 4))
+        por_pagina_combo.bind("<<ComboboxSelected>>", lambda _e: self._cambiar_por_pagina())
 
         hist_btns = tk.Frame(hist_frame, bg="white")
         hist_btns.pack(fill="x", padx=6, pady=(0, 6))
@@ -429,6 +482,8 @@ class EntryFormWindow:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
         state = "readonly" if readonly else "normal"
         entry = tk.Entry(frame, textvariable=variable, state=state)
+        if required and not readonly:
+            entry.configure(highlightthickness=1, highlightcolor="#e53935", highlightbackground="#e53935")
         entry.pack(fill="x", pady=(4, 0))
         if not readonly:
             apply_focus_bindings(entry)
@@ -444,6 +499,7 @@ class EntryFormWindow:
         frame.grid(row=row, column=col, columnspan=col_span, padx=8, pady=8, sticky="ew")
         if required:
             make_required_label(frame, label).pack(anchor="w")
+            frame.configure(highlightthickness=1, highlightcolor="#e53935", highlightbackground="#e53935")
         else:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
         combo = ttk.Combobox(frame, textvariable=variable, values=options, state="normal")
@@ -519,6 +575,7 @@ class EntryFormWindow:
         if not clean:
             self._hide_combo_tooltip()
             return
+        self._tooltip_active = True
 
         if self._combo_tooltip is None or not self._combo_tooltip.winfo_exists():
             self._combo_tooltip = tk.Toplevel(self.window)
@@ -546,6 +603,7 @@ class EntryFormWindow:
         self._combo_tooltip.deiconify()
 
     def _hide_combo_tooltip(self, _event: tk.Event | None = None) -> None:
+        self._tooltip_active = False
         if self._combo_tooltip is not None and self._combo_tooltip.winfo_exists():
             self._combo_tooltip.withdraw()
 
@@ -563,6 +621,9 @@ class EntryFormWindow:
             return
 
         def _on_motion(event: tk.Event) -> None:
+            if not self._tooltip_active and not self._is_combo_dropdown_open(combo):
+                self._hide_combo_tooltip()
+                return
             try:
                 idx = listbox.nearest(event.y)
                 value = listbox.get(idx)
@@ -576,10 +637,12 @@ class EntryFormWindow:
         listbox.bind("<ButtonRelease-1>", self._hide_combo_tooltip, add="+")
         combo.bind("<Escape>", self._hide_combo_tooltip, add="+")
         combo.bind("<FocusOut>", self._hide_combo_tooltip, add="+")
+        combo.bind("<<ComboboxSelected>>", self._hide_combo_tooltip, add="+")
         self._tooltip_bound_combos.add(key)
 
     def _bind_combo_tooltip_fallback(self, combo: ttk.Combobox) -> None:
         def _on_motion(event: tk.Event) -> None:
+            self._tooltip_active = True
             value = combo.get().strip()
             if len(value) <= 36:
                 self._hide_combo_tooltip()
@@ -808,71 +871,149 @@ class EntryFormWindow:
             return
         self.total_var.set(str(round(qty * pres, 2)))
 
+    def _set_save_busy(self, busy: bool) -> None:
+        if self.save_btn is None:
+            return
+        if busy:
+            self.save_btn.config(text="Guardando...", state="disabled", bg="#8FA3BF")
+            self.window.update_idletasks()
+        else:
+            self.save_btn.config(text="Actualizar" if self.editing_id is not None else "Guardar", state="normal", bg=COLORS["primary"])
+
+    def _sort_column(self, col: str, reverse: bool) -> None:
+        if self.history_tree is None:
+            return
+        items = []
+        for item_id in self.history_tree.get_children(""):
+            raw = self.history_tree.set(item_id, col)
+            if col in ("id",):
+                try:
+                    sort_key = float(raw)
+                except ValueError:
+                    sort_key = -1.0
+            elif col in ("total",):
+                try:
+                    sort_key = float(str(raw).replace(",", ""))
+                except ValueError:
+                    sort_key = -1.0
+            elif col in ("fecha",):
+                parsed = self._parse_date(str(raw))
+                sort_key = parsed or date.min
+            else:
+                sort_key = str(raw).lower()
+            items.append((sort_key, item_id))
+
+        items.sort(reverse=reverse)
+        for index, (_value, item_id) in enumerate(items):
+            self.history_tree.move(item_id, "", index)
+        self.history_tree.heading(col, command=lambda: self._sort_column(col, not reverse))
+
+    def _has_unsaved_changes(self) -> bool:
+        if self.editing_id is not None:
+            return True
+        if self.tipo_entrada_var.get().strip():
+            return True
+        if self.codigo_var.get().strip():
+            return True
+        if self.lote_var.get().strip():
+            return True
+        if self.cantidad_var.get().strip():
+            return True
+        if self.total_var.get().strip():
+            return True
+        if self.observaciones_text is not None and self.observaciones_text.get("1.0", tk.END).strip():
+            return True
+        return False
+
+    def _on_close(self) -> None:
+        if self._has_unsaved_changes():
+            if self._mb_askyesno("Salir", "Hay cambios sin guardar. ¿Salir de todas formas?"):
+                self.window.destroy()
+            return
+        self.window.destroy()
+
     # ── acciones ───────────────────────────────────────────────
 
     def _load_history(self, show_all: bool = False) -> None:
-        if self.history_tree is None:
-            return
-        self.history_tree.delete(*self.history_tree.get_children())
-        records = DataHandler.get_all(ENTRADAS_FILE, "entradas")
-        rows = list(reversed(records))
-        if not show_all:
-            rows = rows[:15]
-        for rec in rows:
-            anulado = rec.get("anulado", False)
-            estado = "ANULADO" if anulado else "Activo"
-            row = (
-                rec.get("id", ""),
-                rec.get("fecha", ""),
-                substance_code(rec, self.sustancias_by_id),
-                substance_name(rec, self.sustancias_by_id),
-                rec.get("lote", ""),
-                rec.get("total", ""),
-                self.lkp.to_name("unidades", rec.get("id_unidad")) or rec.get("unidad", ""),
-                estado,
-            )
-            tag = "anulado" if anulado else ""
-            self.history_tree.insert("", tk.END, values=row, tags=(tag,))
+        self.pagina_actual = 1
+        self._cargar_historial_paginado()
 
     def _filter_history(self) -> None:
-        fecha = self.hist_fecha_var.get().strip()
-        codigo = self.hist_codigo_var.get().strip()
-        lote = self.hist_lote_var.get().strip()
-        if not fecha and not codigo:
-            self._mb_showwarning("Filtro", "Fecha y Código son obligatorios para filtrar")
-            return
-        if self.history_tree is None:
-            return
-        self.history_tree.delete(*self.history_tree.get_children())
-        records = DataHandler.get_all(ENTRADAS_FILE, "entradas")
-        for rec in reversed(records):
-            if fecha and str(rec.get("fecha", "")).strip() != fecha:
-                continue
-            if codigo and substance_code(rec, self.sustancias_by_id) != codigo:
-                continue
-            if lote and str(rec.get("lote", "")).strip() != lote:
-                continue
-            anulado = rec.get("anulado", False)
-            estado = "ANULADO" if anulado else "Activo"
-            row = (
-                rec.get("id", ""),
-                rec.get("fecha", ""),
-                substance_code(rec, self.sustancias_by_id),
-                substance_name(rec, self.sustancias_by_id),
-                rec.get("lote", ""),
-                rec.get("total", ""),
-                self.lkp.to_name("unidades", rec.get("id_unidad")) or rec.get("unidad", ""),
-                estado,
-            )
-            tag = "anulado" if anulado else ""
-            self.history_tree.insert("", tk.END, values=row, tags=(tag,))
+        self.pagina_actual = 1
+        self._cargar_historial_paginado()
 
     def _clear_history_filters(self) -> None:
         """Limpia filtros del historial y muestra todo."""
         self.hist_fecha_var.set("")
         self.hist_codigo_var.set("")
         self.hist_lote_var.set("")
-        self._load_history(show_all=True)
+        self.pagina_actual = 1
+        self._cargar_historial_paginado()
+
+    def _history_filtered_rows(self) -> list[dict]:
+        fecha = self.hist_fecha_var.get().strip()
+        codigo = self.hist_codigo_var.get().strip().upper()
+        lote = self.hist_lote_var.get().strip().upper()
+
+        rows = []
+        for rec in reversed(DataHandler.get_all(ENTRADAS_FILE, "entradas")):
+            if fecha and str(rec.get("fecha", "")).strip() != fecha:
+                continue
+            if codigo and substance_code(rec, self.sustancias_by_id).strip().upper() != codigo:
+                continue
+            if lote and lote not in str(rec.get("lote", "")).strip().upper():
+                continue
+            rows.append(rec)
+        return rows
+
+    def _cargar_historial_paginado(self) -> None:
+        if self.history_tree is None:
+            return
+
+        rows = self._history_filtered_rows()
+        try:
+            por_pagina = max(1, int(self.por_pagina_var.get().strip()))
+        except ValueError:
+            por_pagina = 50
+            self.por_pagina_var.set("50")
+
+        total = len(rows)
+        self.total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+        self.pagina_actual = max(1, min(self.pagina_actual, self.total_paginas))
+
+        start = (self.pagina_actual - 1) * por_pagina
+        end = start + por_pagina
+        page_rows = rows[start:end]
+
+        self.history_tree.delete(*self.history_tree.get_children())
+        for rec in page_rows:
+            anulado = rec.get("anulado", False)
+            estado = "ANULADO" if anulado else "Activo"
+            row = (
+                rec.get("id", ""),
+                rec.get("fecha", ""),
+                substance_code(rec, self.sustancias_by_id),
+                substance_name(rec, self.sustancias_by_id),
+                rec.get("lote", ""),
+                rec.get("total", ""),
+                self.lkp.to_name("unidades", rec.get("id_unidad")) or rec.get("unidad", ""),
+                estado,
+            )
+            tag = "anulado" if anulado else ""
+            self.history_tree.insert("", tk.END, values=row, tags=(tag,))
+
+        if self.pag_label is not None:
+            self.pag_label.config(text=f"Página {self.pagina_actual} de {self.total_paginas}")
+
+    def _ir_pagina(self, pagina: int) -> None:
+        if pagina < 1 or pagina > self.total_paginas:
+            return
+        self.pagina_actual = pagina
+        self._cargar_historial_paginado()
+
+    def _cambiar_por_pagina(self) -> None:
+        self.pagina_actual = 1
+        self._cargar_historial_paginado()
 
     def _edit_selected(self) -> None:
         if self.history_tree is None:
@@ -1065,6 +1206,9 @@ class EntryFormWindow:
             self.observaciones_text.delete("1.0", tk.END)
 
     def save(self) -> None:
+        original_cursor = self.window.cget("cursor")
+        self.window.config(cursor="watch")
+        self.window.update()
         required = {
             "Tipo Entrada": self.tipo_entrada_var.get().strip(),
             "Fecha Entrada": self.fecha_entrada_var.get().strip(),
@@ -1073,39 +1217,79 @@ class EntryFormWindow:
             "Cantidad": self.cantidad_var.get().strip(),
             "Total": self.total_var.get().strip(),
             "Unidad": self.unidad_var.get().strip(),
+            "Proveedor": self.proveedor_var.get().strip(),
         }
         missing = [k for k, v in required.items() if not v]
         if missing:
             self._mb_showerror("Validacion", f"Completa campos obligatorios: {', '.join(missing)}")
+            self.window.config(cursor=original_cursor)
             return
 
         if not self.certificado_var.get() and not self.msds_var.get():
             self._mb_showerror("Validacion", "Debe marcar al menos Certificado o MSDS")
+            self.window.config(cursor=original_cursor)
             return
 
         fecha_entrada = self._parse_date(self.fecha_entrada_var.get())
         if fecha_entrada is None:
             self._mb_showerror("Validacion", "Fecha Entrada no es valida")
+            self.window.config(cursor=original_cursor)
             return
+
+        lote = self.lote_var.get().strip()
+        if not lote:
+            self._mb_showerror("Validacion", "El lote es obligatorio")
+            self.window.config(cursor=original_cursor)
+            return
+
+        fecha_documento = self._parse_date(self.fecha_doc_var.get())
+        if self.fecha_doc_var.get().strip() and fecha_documento is None:
+            self._mb_showerror("Validacion", "Fecha Documento no es valida")
+            self.window.config(cursor=original_cursor)
+            return
+        if fecha_documento is not None and fecha_documento > date.today():
+            self._mb_showerror("Validacion", "Fecha Documento no puede ser futura")
+            self.window.config(cursor=original_cursor)
+            return
+        if fecha_documento is not None:
+            try:
+                vigencia_doc = fecha_documento.replace(year=fecha_documento.year + 5)
+            except ValueError:
+                vigencia_doc = fecha_documento.replace(year=fecha_documento.year + 5, day=28)
+            if vigencia_doc < date.today():
+                self._mb_showerror(
+                    "Validacion",
+                    f"El documento está VENCIDO desde {vigencia_doc.strftime('%Y-%m-%d')}\n"
+                    "No se puede ingresar una entrada con documento vencido.",
+                )
+                self.window.config(cursor=original_cursor)
+                return
 
         cantidad = self._to_float(self.cantidad_var.get())
         if cantidad is None or cantidad <= 0:
             self._mb_showerror("Validacion", "Cantidad debe ser numerica y mayor a 0")
+            self.window.config(cursor=original_cursor)
             return
 
         total = self._to_float(self.total_var.get())
         if total is None or total <= 0:
             self._mb_showerror("Validacion", "Total (contenido neto) debe ser numerico y mayor a 0")
+            self.window.config(cursor=original_cursor)
             return
 
         # Validar que el producto no esté vencido
         fecha_venc = self._parse_date(self.fecha_venc_var.get())
+        if fecha_venc is not None and fecha_entrada is not None and fecha_venc < fecha_entrada:
+            self._mb_showerror("Validacion", "La fecha de vencimiento no puede ser anterior a la fecha de entrada")
+            self.window.config(cursor=original_cursor)
+            return
         if fecha_venc is not None and fecha_venc < date.today():
             self._mb_showerror(
                 "Producto Vencido",
                 f"No se puede ingresar un producto vencido.\n"
                 f"Fecha de vencimiento: {fecha_venc.strftime('%Y-%m-%d')}",
             )
+            self.window.config(cursor=original_cursor)
             return
 
         observaciones = ""
@@ -1116,18 +1300,37 @@ class EntryFormWindow:
         costo_unitario = self._to_float(costo_unitario_raw)
         if costo_unitario_raw and costo_unitario is None:
             self._mb_showerror("Validacion", "Costo Unitario no es valido")
+            self.window.config(cursor=original_cursor)
             return
 
         costo_total_raw = self.costo_total_var.get().strip()
         costo_total = self._to_float(costo_total_raw)
         if costo_total_raw and costo_total is None:
             self._mb_showerror("Validacion", "Costo Total no es valido")
+            self.window.config(cursor=original_cursor)
             return
 
         selected_sustancia = self._find_sustancia_by_code(self.codigo_var.get().strip())
         if selected_sustancia is None:
             self._mb_showerror("Validacion", "La sustancia seleccionada no existe en la maestra")
+            self.window.config(cursor=original_cursor)
             return
+        if not bool(selected_sustancia.get("habilitada", True)):
+            self._mb_showerror("Validacion", "La sustancia está inhabilitada. No se pueden crear entradas.")
+            self.window.config(cursor=original_cursor)
+            return
+
+        # No permitir lote duplicado por sustancia en entradas activas
+        id_sustancia = selected_sustancia.get("id")
+        for rec in DataHandler.get_all(ENTRADAS_FILE, "entradas"):
+            if rec.get("anulado"):
+                continue
+            if self.editing_id is not None and rec.get("id") == self.editing_id:
+                continue
+            if rec.get("id_sustancia") == id_sustancia and str(rec.get("lote", "")).strip() == lote:
+                self._mb_showerror("Validacion", "Ya existe una entrada activa con ese lote para la sustancia seleccionada")
+                self.window.config(cursor=original_cursor)
+                return
 
         ubicacion_tipo, id_ubicacion = self._selected_location_fields()
 
@@ -1160,60 +1363,84 @@ class EntryFormWindow:
         if self.editing_id is not None:
             # ── Modo edición ──
             if not self._mb_askyesno("Confirmar", "¿Desea actualizar esta entrada?"):
+                self.window.config(cursor=original_cursor)
                 return
-
-            old_records = DataHandler.get_all(ENTRADAS_FILE, "entradas")
-            old_rec = next((r for r in old_records if r.get("id") == self.editing_id), {})
-
-            # Detectar campos cambiados para bitácora
-            changes: list[tuple[str, str, str]] = []
-            for field, new_val in record.items():
-                old_val = old_rec.get(field, "")
-                if str(new_val) != str(old_val):
-                    changes.append((field, str(old_val), str(new_val)))
-
-            if not DataHandler.update_record(ENTRADAS_FILE, "entradas", self.editing_id, record):
-                self._mb_showerror("Error", "No se pudo actualizar la entrada")
-                return
-
-            for campo, anterior, nuevo in changes:
-                registrar_bitacora(
-                    usuario=self.usuario,
-                    tipo_operacion="Edición",
-                    hoja="Entrada",
-                    id_registro=str(self.editing_id),
-                    campo=campo,
-                    valor_anterior=anterior,
-                    valor_nuevo=nuevo,
+            self._set_save_busy(True)
+            try:
+                salidas_lote = sum(
+                    (self._to_float(str(s.get("cantidad", 0))) or 0.0)
+                    for s in DataHandler.get_all(SALIDAS_FILE, "salidas")
+                    if not s.get("anulado")
+                    and s.get("id_sustancia") == id_sustancia
+                    and str(s.get("lote", "")).strip() == lote
                 )
+                if total < salidas_lote:
+                    self._mb_showerror(
+                        "Stock",
+                        f"No se puede reducir la entrada a {total}.\n"
+                        f"Ya se han consumido {salidas_lote} de este lote.",
+                    )
+                    return
 
-            self._mb_showinfo("Éxito", "Entrada actualizada correctamente")
-            sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
-            self.clear()
-            self._load_history()
-            return
+                old_records = DataHandler.get_all(ENTRADAS_FILE, "entradas")
+                old_rec = next((r for r in old_records if r.get("id") == self.editing_id), {})
+
+                # Detectar campos cambiados para bitácora
+                changes: list[tuple[str, str, str]] = []
+                for field, new_val in record.items():
+                    old_val = old_rec.get(field, "")
+                    if str(new_val) != str(old_val):
+                        changes.append((field, str(old_val), str(new_val)))
+
+                if not DataHandler.update_record(ENTRADAS_FILE, "entradas", self.editing_id, record):
+                    self._mb_showerror("Error", "No se pudo actualizar la entrada")
+                    return
+
+                for campo, anterior, nuevo in changes:
+                    registrar_bitacora(
+                        usuario=self.usuario,
+                        tipo_operacion="Edición",
+                        hoja="Entrada",
+                        id_registro=str(self.editing_id),
+                        campo=campo,
+                        valor_anterior=anterior,
+                        valor_nuevo=nuevo,
+                    )
+
+                self._mb_showinfo("Éxito", "Entrada actualizada correctamente")
+                sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
+                self.clear()
+                self._load_history()
+                return
+            finally:
+                self._set_save_busy(False)
 
         # ── Modo creación ──
         if not self._mb_askyesno("Confirmar", "¿Desea guardar esta entrada?"):
+            self.window.config(cursor=original_cursor)
             return
+        self._set_save_busy(True)
+        try:
+            if not DataHandler.add_record(ENTRADAS_FILE, "entradas", record):
+                self._mb_showerror("Error", "No se pudo guardar la entrada")
+                return
 
-        if not DataHandler.add_record(ENTRADAS_FILE, "entradas", record):
-            self._mb_showerror("Error", "No se pudo guardar la entrada")
-            return
+            tipo_ent = self.tipo_entrada_var.get().strip() or "Entrada"
+            registrar_bitacora(
+                usuario=self.usuario,
+                tipo_operacion="Entrada",
+                hoja=tipo_ent,
+                id_registro=str(record.get("id", "")),
+                campo="entrada_completa",
+                valor_anterior="",
+                valor_nuevo=f"{self.codigo_var.get().strip()} | Lote: {record.get('lote', '')} | Total: {record['total']}",
+            )
 
-        tipo_ent = self.tipo_entrada_var.get().strip() or "Entrada"
-        registrar_bitacora(
-            usuario=self.usuario,
-            tipo_operacion="Entrada",
-            hoja=tipo_ent,
-            id_registro=str(record.get("id", "")),
-            campo="entrada_completa",
-            valor_anterior="",
-            valor_nuevo=f"{self.codigo_var.get().strip()} | Lote: {record.get('lote', '')} | Total: {record['total']}",
-        )
-
-        self._mb_showinfo("Exito", "Entrada registrada correctamente")
-        sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
-        self.clear()
-        self._load_history()
+            self._mb_showinfo("Exito", "Entrada registrada correctamente")
+            sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
+            self.clear()
+            self._load_history()
+        finally:
+            self._set_save_busy(False)
+            self.window.config(cursor=original_cursor)
 

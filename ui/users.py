@@ -380,6 +380,9 @@ class CreateUserWindow:
                 var.set(True)
 
     def save(self) -> None:
+        original_cursor = self.window.cget("cursor")
+        self.window.config(cursor="watch")
+        self.window.update()
         nombre = self.fields["nombre"].get().strip()
         usuario = self.fields["usuario"].get().strip()
         contrasena = self.fields["contrasena"].get().strip()
@@ -387,11 +390,13 @@ class CreateUserWindow:
 
         if not all([nombre, usuario, contrasena, rol]):
             messagebox.showerror("Validación", "Nombre, Usuario, Contraseña y Permiso son obligatorios")
+            self.window.config(cursor=original_cursor)
             return
 
         usuarios = DataHandler.get_all(USERS_FILE, "usuarios")
         if any(u.get("usuario", "").lower() == usuario.lower() for u in usuarios):
             messagebox.showerror("Validación", "Ese usuario ya existe")
+            self.window.config(cursor=original_cursor)
             return
 
         permisos = {key: var.get() for key, var in self.perm_vars.items()}
@@ -410,8 +415,10 @@ class CreateUserWindow:
 
         if not DataHandler.add_record(USERS_FILE, "usuarios", record):
             messagebox.showerror("Error", "No se pudo guardar el usuario")
+            self.window.config(cursor=original_cursor)
             return
 
         messagebox.showinfo("Éxito", "Usuario creado correctamente")
         self._clear()
         self._load_table()
+        self.window.config(cursor=original_cursor)

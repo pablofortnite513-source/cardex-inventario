@@ -32,7 +32,7 @@ class CheckListWindow:
     def __init__(self, parent: tk.Tk, usuario: str = "", on_saved=None):
         self.window = tk.Toplevel(parent)
         self.window.title("Lista de Chequeo - Recepción de Compra")
-        self.window.geometry("1180x820")
+        self.window.geometry("980x700")
         self.window.configure(bg=COLORS["secondary"])
         self.usuario = usuario
         self.on_saved = on_saved
@@ -84,6 +84,7 @@ class CheckListWindow:
         bind_uppercase(self.orden_compra_var)
         bind_uppercase(self.lote_var)
         bind_uppercase(self.observacion_producto_var)
+        self.window.bind("<Escape>", lambda _e: self.window.destroy())
 
     def _mb_showerror(self, *args, **kwargs):
         kwargs.setdefault("parent", self.window)
@@ -113,7 +114,14 @@ class CheckListWindow:
         wrapper = tk.Frame(self._canvas, bg="white", padx=14, pady=14)
         wrapper.bind("<Configure>", lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
         self._canvas_window = self._canvas.create_window((0, 0), window=wrapper, anchor="nw")
-        self._canvas.bind("<Configure>", lambda e: self._canvas.itemconfigure(self._canvas_window, width=e.width))
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+        self._canvas.bind(
+            "<Configure>",
+            lambda e: (
+                self._canvas.itemconfigure(self._canvas_window, width=e.width),
+                self._canvas.configure(scrollregion=self._canvas.bbox("all")),
+            ),
+        )
         self._canvas.bind("<Enter>", lambda e: self._canvas.bind_all("<MouseWheel>", self._on_mousewheel))
         self._canvas.bind("<Leave>", lambda e: self._canvas.unbind_all("<MouseWheel>"))
 
@@ -270,6 +278,9 @@ class CheckListWindow:
             self.observaciones_text.delete("1.0", tk.END)
 
     def save(self) -> None:
+        original_cursor = self.window.cget("cursor")
+        self.window.config(cursor="watch")
+        self.window.update()
         required = {
             "Fecha Recepción": self.fecha_recepcion_var.get().strip(),
             "Proveedor": self.proveedor_var.get().strip(),
@@ -282,6 +293,11 @@ class CheckListWindow:
         missing = [k for k, v in required.items() if not v]
         if missing:
             self._mb_showerror("Validación", f"Completa campos obligatorios: {', '.join(missing)}")
+            self.window.config(cursor=original_cursor)
+            return
+        if self.aprobo_var.get().strip() == self.verifico_var.get().strip():
+            self._mb_showerror("Validación", "Aprobó y Verificó no pueden ser la misma persona")
+            self.window.config(cursor=original_cursor)
             return
         sin_marcar = [item for item in CHECK_ITEMS if self.check_vars[item].get() not in ("SI", "NO")]
         if sin_marcar:
@@ -289,6 +305,7 @@ class CheckListWindow:
                 "Validación",
                 "Debes marcar Sí o No en todos los ítems del checklist.\n\nFaltan:\n- " + "\n- ".join(sin_marcar),
             )
+            self.window.config(cursor=original_cursor)
             return
 
 
@@ -296,13 +313,23 @@ class CheckListWindow:
             cantidad = float(self.cantidad_var.get().strip().replace(",", "."))
         except ValueError:
             self._mb_showerror("Validación", "Cantidad debe ser numérica")
+            self.window.config(cursor=original_cursor)
             return
 
         if cantidad <= 0:
             self._mb_showerror("Validación", "Cantidad debe ser mayor a 0")
+            self.window.config(cursor=original_cursor)
             return
 
         selected_sustancia = substance_from_code(self.sustancias_by_code, self.codigo_var.get().strip())
+        if selected_sustancia is None:
+            self._mb_showerror("Validación", "El código de producto no existe en la maestra de sustancias")
+            self.window.config(cursor=original_cursor)
+            return
+        if not bool(selected_sustancia.get("habilitada", True)):
+            self._mb_showerror("Validación", "El producto está inhabilitado. No se puede recibir.")
+            self.window.config(cursor=original_cursor)
+            return
         id_sustancia = selected_sustancia.get("id") if selected_sustancia else None
 
         proveedor_nombre = self.proveedor_var.get().strip()
@@ -325,6 +352,7 @@ class CheckListWindow:
 
         if not DataHandler.add_record(CHECKLISTS_FILE, "listasChequeoRecepcionCompra", record):
             self._mb_showerror("Error", "No se pudo guardar la lista de chequeo")
+            self.window.config(cursor=original_cursor)
             return
 
         prefill = {
@@ -334,13 +362,10 @@ class CheckListWindow:
             "proveedor": proveedor_nombre,
         }
         self._mb_showinfo("Éxito", "Lista de chequeo guardada correctamente")
+        self.window.config(cursor=original_cursor)
         if self.on_saved:
             self.on_saved(prefill)
         self.window.destroy()
-
-        if self.aprobo_var.get().strip() == self.verifico_var.get().strip():
-            self._mb_showerror("Validación", "Aprobó y Verificó no pueden ser la misma persona")
-            return
 
     def _set_codigo_data(self, code: str) -> None:
         self.codigo_var.set(code)

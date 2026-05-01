@@ -14,6 +14,44 @@ BORDER_FOCUS = PINK           # Borde al enfocar
 ASTERISK_COLOR = "#e53935"    # Rojo para asterisco obligatorio
 
 
+def _attach_tooltip(widget: tk.Widget, text: str) -> None:
+    """Tooltip simple para widgets pequeños (ej. asterisco obligatorio)."""
+    if not text:
+        return
+
+    tooltip_win: dict[str, tk.Toplevel | None] = {"win": None}
+
+    def _show(event: tk.Event) -> None:
+        if tooltip_win["win"] is not None and tooltip_win["win"].winfo_exists():
+            return
+        top = tk.Toplevel(widget)
+        top.overrideredirect(True)
+        top.attributes("-topmost", True)
+        tk.Label(
+            top,
+            text=text,
+            bg="#FFF8C6",
+            fg="#222222",
+            relief="solid",
+            bd=1,
+            padx=6,
+            pady=4,
+            font=("Segoe UI", 9),
+        ).pack()
+        top.geometry(f"+{event.x_root + 12}+{event.y_root + 10}")
+        tooltip_win["win"] = top
+
+    def _hide(_event: tk.Event | None = None) -> None:
+        win = tooltip_win["win"]
+        if win is not None and win.winfo_exists():
+            win.destroy()
+        tooltip_win["win"] = None
+
+    widget.bind("<Enter>", _show, add="+")
+    widget.bind("<Leave>", _hide, add="+")
+    widget.bind("<Button-1>", _hide, add="+")
+
+
 def apply_focus_bindings(widget: tk.Widget) -> None:
     """Agrega efectos de focus (borde rosa) a un Entry o Text."""
     # Excluir ttk.Entry (DateEntry internos, etc.)
@@ -63,6 +101,20 @@ def setup_ttk_styles(root: tk.Widget) -> None:
         indicatorcolor=[("selected", PINK), ("!selected", "white")],
     )
 
+    # Treeview con selección visible (fondo primario y texto blanco)
+    style.configure(
+        "Treeview",
+        background="white",
+        foreground="black",
+        rowheight=25,
+        fieldbackground="white",
+    )
+    style.map(
+        "Treeview",
+        background=[("selected", COLORS["primary"])],
+        foreground=[("selected", "white")],
+    )
+
 
 def apply_hover_button(btn: tk.Button, normal_bg: str | None = None) -> None:
     """Agrega hover sutil a un botón tk (oscurecer ligeramente)."""
@@ -78,8 +130,10 @@ def make_required_label(parent: tk.Widget, text: str, **kwargs) -> tk.Label:
     frame = tk.Frame(parent, bg=kwargs.get("bg", "white"))
     tk.Label(frame, text=text, bg=kwargs.get("bg", "white"),
              font=kwargs.get("font")).pack(side="left")
-    tk.Label(frame, text=" *", fg=ASTERISK_COLOR, bg=kwargs.get("bg", "white"),
-             font=kwargs.get("font")).pack(side="left")
+    star = tk.Label(frame, text=" *", fg=ASTERISK_COLOR, bg=kwargs.get("bg", "white"),
+                    font=kwargs.get("font"), cursor="question_arrow")
+    star.pack(side="left")
+    _attach_tooltip(star, "Campo obligatorio")
     return frame
 
 

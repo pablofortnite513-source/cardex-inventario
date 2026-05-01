@@ -34,15 +34,22 @@ class VigenciasWindow:
     def __init__(self, parent: tk.Tk, usuario: str = "", rol: str = ""):
         self.window = tk.Toplevel(parent)
         self.window.title("Sistema de Gestion - Vigencias")
-        self.window.geometry("1260x750")
+        self.window.geometry("1200x650")
         self.window.configure(bg=COLORS["secondary"])
         self.usuario = usuario
         self.rol = rol.lower()
 
         self.search_var = tk.StringVar()
         self.tree: ttk.Treeview | None = None
+        self._tree_columns: tuple[str, ...] = ()
+        self._tree_base_widths: dict[str, int] = {}
         self.estado_label: tk.Label | None = None
         self.row_records: dict[str, dict] = {}
+        self.pagina_actual = 1
+        self.total_paginas = 1
+        self.por_pagina_var = tk.StringVar(value="50")
+        self.pag_label: tk.Label | None = None
+        self.sort_mode = "default"
 
         self.detail_vars = {
             "codigo": tk.StringVar(),
@@ -82,11 +89,32 @@ class VigenciasWindow:
         self.locations_by_key, _ = build_location_indexes(ubicaciones_cat, ubicaciones_uso_cat)
 
         self._build_ui()
+        self.window.bind("<Escape>", lambda _e: self.window.destroy())
         self.load_table()
 
     def _build_ui(self) -> None:
-        wrapper = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=12, pady=12)
-        wrapper.pack(expand=True, fill="both", padx=14, pady=14)
+        outer = tk.Frame(self.window, bg="white", bd=1, relief="solid")
+        outer.pack(expand=True, fill="both", padx=14, pady=14)
+
+        self._canvas = tk.Canvas(outer, bg="white", highlightthickness=0)
+        v_scroll = ttk.Scrollbar(outer, orient="vertical", command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=v_scroll.set)
+        v_scroll.pack(side="right", fill="y")
+        self._canvas.pack(side="left", fill="both", expand=True)
+
+        wrapper = tk.Frame(self._canvas, bg="white", padx=12, pady=12)
+        self._canvas_window = self._canvas.create_window((0, 0), window=wrapper, anchor="nw")
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+        wrapper.bind("<Configure>", lambda _e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
+        self._canvas.bind(
+            "<Configure>",
+            lambda e: (
+                self._canvas.itemconfigure(self._canvas_window, width=e.width),
+                self._canvas.configure(scrollregion=self._canvas.bbox("all")),
+            ),
+        )
+        self._canvas.bind("<Enter>", lambda _e: self._canvas.bind_all("<MouseWheel>", self._on_mousewheel))
+        self._canvas.bind("<Leave>", lambda _e: self._canvas.unbind_all("<MouseWheel>"))
 
         build_header(wrapper, "Sistema de Gestión  -  Vigencias")
 
@@ -102,6 +130,16 @@ class VigenciasWindow:
             fg=COLORS["text_light"],
             relief="flat",
             padx=16,
+            pady=5,
+        ).pack(side="left", padx=(0, 8))
+        tk.Button(
+            search_row,
+            text="⟳ Refrescar",
+            command=self.load_table,
+            bg=COLORS["border"],
+            fg=COLORS["text_dark"],
+            relief="flat",
+            padx=10,
             pady=5,
         ).pack(side="left", padx=(0, 8))
         tk.Button(
@@ -126,9 +164,13 @@ class VigenciasWindow:
         ).pack(side="left")
 
         columns = ("codigo", "nombre", "lote", "f_venc", "cantidad", "unidad", "proveedor", "dias", "estado")
+        self._tree_columns = columns
         self.tree = ttk.Treeview(wrapper, columns=columns, show="headings", height=12, selectmode="extended")
         self.tree.pack(expand=True, fill="both", pady=(0, 10))
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
+        style = ttk.Style(self.window)
+        style.configure("Treeview", background="white", foreground="black", rowheight=25, fieldbackground="white")
+        style.map("Treeview", background=[("selected", COLORS["primary"])], foreground=[("selected", "white")])
 
         headings = {
             "codigo": "Codigo",
@@ -154,8 +196,44 @@ class VigenciasWindow:
         }
 
         for col in columns:
-            self.tree.heading(col, text=headings[col])
-            self.tree.column(col, width=widths[col], anchor="w")
+            self.tree.heading(col, text=headings[col], command=lambda c=col: self._sort_column(c, False))
+            self.tree.column(col, width=widths[col], minwidth=max(60, int(widths[col] * 0.5)), anchor="w", stretch=True)
+        self._tree_base_widths = widths
+        self.tree.bind("<Configure>", self._on_tree_resize, add="+")
+
+        pag_frame = tk.Frame(wrapper, bg="white")
+        pag_frame.pack(fill="x", padx=2, pady=(6, 2))
+        tk.Button(
+            pag_frame, text="◄ Primera", command=lambda: self._ir_pagina(1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+        tk.Button(
+            pag_frame, text="Anterior", command=lambda: self._ir_pagina(self.pagina_actual - 1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+
+        self.pag_label = tk.Label(pag_frame, text="Página 1 de 1", bg="white", font=("Segoe UI", 9))
+        self.pag_label.pack(side="left", padx=10)
+
+        tk.Button(
+            pag_frame, text="Siguiente", command=lambda: self._ir_pagina(self.pagina_actual + 1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+        tk.Button(
+            pag_frame, text="Última ►", command=lambda: self._ir_pagina(self.total_paginas),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left")
+
+        tk.Label(pag_frame, text="Mostrar:", bg="white").pack(side="left", padx=(15, 4))
+        por_pagina_combo = ttk.Combobox(
+            pag_frame,
+            textvariable=self.por_pagina_var,
+            values=["20", "50", "100", "200"],
+            state="readonly",
+            width=6,
+        )
+        por_pagina_combo.pack(side="left", padx=(0, 4))
+        por_pagina_combo.bind("<<ComboboxSelected>>", lambda _e: self._cambiar_por_pagina())
 
         details = tk.Frame(wrapper, bg="white")
         details.pack(fill="x")
@@ -185,7 +263,7 @@ class VigenciasWindow:
                 )
                 self.estado_label.pack(fill="x")
             else:
-                tk.Entry(group, textvariable=self.detail_vars[key], state="readonly").pack(fill="x")
+                tk.Entry(group, textvariable=self.detail_vars[key], state="readonly", font=("Segoe UI", 10)).pack(fill="x")
 
         for col in range(3):
             details.columnconfigure(col, weight=1)
@@ -221,10 +299,13 @@ class VigenciasWindow:
         ).pack(pady=(0, 4))
 
         button_row = tk.Frame(wrapper, bg="white")
-        button_row.pack(fill="x", pady=(10, 0))
+        button_row.pack(side="bottom", fill="x", pady=(10, 0))
+
+        right_actions = tk.Frame(button_row, bg="white")
+        right_actions.pack(side="right")
 
         tk.Button(
-            button_row,
+            right_actions,
             text="Quitar Lista",
             command=self.remove_selected,
             bg=COLORS["primary"],
@@ -232,9 +313,9 @@ class VigenciasWindow:
             relief="flat",
             padx=18,
             pady=6,
-        ).pack(side="right", padx=(8, 0))
+        ).pack(side="left", padx=(0, 8))
         tk.Button(
-            button_row,
+            right_actions,
             text="Limpiar",
             command=self.clear,
             bg=COLORS["primary"],
@@ -242,9 +323,9 @@ class VigenciasWindow:
             relief="flat",
             padx=18,
             pady=6,
-        ).pack(side="right", padx=(8, 0))
+        ).pack(side="left", padx=(0, 8))
         tk.Button(
-            button_row,
+            right_actions,
             text="Salir",
             command=self.window.destroy,
             bg=COLORS["primary"],
@@ -252,7 +333,49 @@ class VigenciasWindow:
             relief="flat",
             padx=18,
             pady=6,
-        ).pack(side="right")
+        ).pack(side="left")
+
+    def _on_mousewheel(self, event) -> None:
+        try:
+            if self._canvas.winfo_exists():
+                self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        except tk.TclError:
+            pass
+
+    def _on_tree_resize(self, event: tk.Event) -> None:
+        if self.tree is None or not self._tree_columns:
+            return
+        total_base = sum(self._tree_base_widths.get(col, 1) for col in self._tree_columns)
+        if total_base <= 0:
+            return
+        width = max(event.width - 20, 500)
+        for col in self._tree_columns:
+            ratio = self._tree_base_widths.get(col, 1) / total_base
+            target = int(width * ratio)
+            self.tree.column(col, width=max(60, target), stretch=True)
+
+    def _sort_column(self, col: str, reverse: bool) -> None:
+        if self.tree is None:
+            return
+        items = []
+        for item_id in self.tree.get_children(""):
+            raw = self.tree.set(item_id, col)
+            if col in ("cantidad", "dias"):
+                try:
+                    key = float(str(raw).replace(",", ""))
+                except ValueError:
+                    key = -999999.0
+            elif col in ("f_venc",):
+                parsed = self._parse_date(str(raw))
+                key = parsed or date.min
+            else:
+                key = str(raw).lower()
+            items.append((key, item_id))
+
+        items.sort(reverse=reverse)
+        for index, (_key, item_id) in enumerate(items):
+            self.tree.move(item_id, "", index)
+        self.tree.heading(col, command=lambda: self._sort_column(col, not reverse))
 
     def _status_for_days(self, days: int | None) -> str:
         if days is None:
@@ -351,48 +474,67 @@ class VigenciasWindow:
                 seen.add(key)
                 unique_records.append((record, round(stock_map.get(key, 0.0), 6)))
 
-        self.tree.delete(*self.tree.get_children())
-        self.row_records.clear()
-
+        filtered_rows: list[tuple[tuple, dict]] = []
         for record, stock in unique_records:
             row = self._build_row(record, stock)
             if query and query not in str(row).lower():
                 continue
+            filtered_rows.append((row, record))
+
+        if self.sort_mode == "dias":
+            def _dias_key(pair: tuple[tuple, dict]) -> int:
+                raw = str(pair[0][7]).strip()
+                if raw in ("", "None"):
+                    return 999999
+                try:
+                    return int(float(raw))
+                except (TypeError, ValueError):
+                    return 999999
+
+            filtered_rows.sort(key=_dias_key)
+        elif self.sort_mode == "fecha":
+            filtered_rows.sort(key=lambda pair: self._parse_date(str(pair[0][3])) or date.max)
+
+        try:
+            por_pagina = max(1, int(self.por_pagina_var.get().strip()))
+        except ValueError:
+            por_pagina = 50
+            self.por_pagina_var.set("50")
+
+        total = len(filtered_rows)
+        self.total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+        self.pagina_actual = max(1, min(self.pagina_actual, self.total_paginas))
+        start = (self.pagina_actual - 1) * por_pagina
+        end = start + por_pagina
+
+        self.tree.delete(*self.tree.get_children())
+        self.row_records.clear()
+        for row, record in filtered_rows[start:end]:
             item_id = self.tree.insert("", tk.END, values=row)
             self.row_records[item_id] = record
 
+        if self.pag_label is not None:
+            self.pag_label.config(text=f"Página {self.pagina_actual} de {self.total_paginas}")
+
     def sort_by_days(self) -> None:
-        if self.tree is None:
-            return
-
-        items = []
-        for item_id in self.tree.get_children():
-            values = self.tree.item(item_id, "values")
-            days_raw = values[7] if len(values) > 7 else ""
-            try:
-                days = int(days_raw)
-            except (TypeError, ValueError):
-                days = 999999
-            items.append((days, values))
-
-        self.tree.delete(*self.tree.get_children())
-        for _, row in sorted(items, key=lambda pair: pair[0]):
-            self.tree.insert("", tk.END, values=row)
+        self.sort_mode = "dias"
+        self.pagina_actual = 1
+        self.load_table()
 
     def sort_by_date(self) -> None:
-        if self.tree is None:
+        self.sort_mode = "fecha"
+        self.pagina_actual = 1
+        self.load_table()
+
+    def _ir_pagina(self, pagina: int) -> None:
+        if pagina < 1 or pagina > self.total_paginas:
             return
+        self.pagina_actual = pagina
+        self.load_table()
 
-        items = []
-        for item_id in self.tree.get_children():
-            values = self.tree.item(item_id, "values")
-            date_raw = values[3] if len(values) > 3 else ""
-            parsed = self._parse_date(str(date_raw))
-            items.append((parsed or date.max, values))
-
-        self.tree.delete(*self.tree.get_children())
-        for _, row in sorted(items, key=lambda pair: pair[0]):
-            self.tree.insert("", tk.END, values=row)
+    def _cambiar_por_pagina(self) -> None:
+        self.pagina_actual = 1
+        self.load_table()
 
     def on_select(self, _event: tk.Event) -> None:
         if self.tree is None:
@@ -427,16 +569,22 @@ class VigenciasWindow:
 
     def _mover_stock(self) -> None:
         """Crea salidas para los productos seleccionados en la tabla (retiro por lote)."""
+        original_cursor = self.window.cget("cursor")
+        self.window.config(cursor="watch")
+        self.window.update()
         if self.tree is None:
+            self.window.config(cursor=original_cursor)
             return
         selected = self.tree.selection()
         if not selected:
             messagebox.showwarning("Mover Stock", "Selecciona al menos un producto de la tabla")
+            self.window.config(cursor=original_cursor)
             return
 
         tipo_salida = self.tipo_salida_var.get().strip()
         if not tipo_salida:
             messagebox.showwarning("Mover Stock", "Selecciona un Tipo de Salida")
+            self.window.config(cursor=original_cursor)
             return
 
         observaciones = ""
@@ -456,16 +604,22 @@ class VigenciasWindow:
             except (TypeError, ValueError):
                 cantidad = 0.0
             unidad = str(values[5]).strip()
+            raw_record = self.row_records.get(item_id, {})
+            sustancia = self.sustancias_by_id.get(raw_record.get("id_sustancia"), {})
+            if not sustancia or not bool(sustancia.get("habilitada", True)):
+                messagebox.showwarning("Validación", f"La sustancia {codigo} está inhabilitada")
+                continue
             if cantidad <= 0:
                 continue
             items.append({
                 "codigo": codigo, "nombre": nombre, "lote": lote,
                 "cantidad": cantidad, "unidad": unidad,
-                "record": self.row_records.get(item_id, {}),
+                "record": raw_record,
             })
 
         if not items:
             messagebox.showwarning("Mover Stock", "Los productos seleccionados no tienen stock disponible")
+            self.window.config(cursor=original_cursor)
             return
 
         resumen = "\n".join(f"  {it['codigo']} - {it['nombre']} | Lote: {it['lote']} | Cant: {it['cantidad']}" for it in items)
@@ -473,6 +627,7 @@ class VigenciasWindow:
             "Confirmar Mover Stock",
             f"Se crearán {len(items)} salida(s) tipo '{tipo_salida}':\n\n{resumen}\n\n¿Continuar?",
         ):
+            self.window.config(cursor=original_cursor)
             return
 
         fecha_hoy = date.today().strftime("%Y-%m-%d")
@@ -508,6 +663,7 @@ class VigenciasWindow:
         sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
         messagebox.showinfo("Mover Stock", f"Se registraron {len(items)} salida(s) correctamente")
         self.load_table()
+        self.window.config(cursor=original_cursor)
 
     def remove_selected(self) -> None:
         if self.tree is None:
@@ -517,6 +673,8 @@ class VigenciasWindow:
 
     def clear(self) -> None:
         self.search_var.set("")
+        self.sort_mode = "default"
+        self.pagina_actual = 1
         for var in self.detail_vars.values():
             var.set("")
         if self.estado_label is not None:

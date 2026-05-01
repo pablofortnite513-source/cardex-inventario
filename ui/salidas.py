@@ -78,10 +78,16 @@ class SalidasWindow:
         self.save_btn: tk.Button | None = None
         self._combo_sources: dict[str, list[str]] = {}
         self._combo_strict: set[str] = set()
+        self.pagina_actual = 1
+        self.total_paginas = 1
+        self.por_pagina_var = tk.StringVar(value="50")
+        self.pag_label: tk.Label | None = None
 
         self._load_options()
         self._build_ui()
         self._bind_events()
+        self.window.bind("<Escape>", lambda _e: self._on_close())
+        self.window.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _mb_showerror(self, *args, **kwargs):
         kwargs.setdefault("parent", self.window)
@@ -256,7 +262,14 @@ class SalidasWindow:
         wrapper = tk.Frame(self._canvas, bg="white", padx=14, pady=14)
         wrapper.bind("<Configure>", lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
         self._canvas_window = self._canvas.create_window((0, 0), window=wrapper, anchor="nw")
-        self._canvas.bind("<Configure>", lambda e: self._canvas.itemconfigure(self._canvas_window, width=e.width))
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+        self._canvas.bind(
+            "<Configure>",
+            lambda e: (
+                self._canvas.itemconfigure(self._canvas_window, width=e.width),
+                self._canvas.configure(scrollregion=self._canvas.bbox("all")),
+            ),
+        )
 
         self._canvas.bind("<Enter>", lambda e: self._canvas.bind_all("<MouseWheel>", self._on_mousewheel))
         self._canvas.bind("<Leave>", lambda e: self._canvas.unbind_all("<MouseWheel>"))
@@ -393,6 +406,10 @@ class SalidasWindow:
             filter_row, text="Borrar filtros", command=self._clear_history_filters,
             bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=12, pady=3,
         ).pack(side="left")
+        tk.Button(
+            filter_row, text="⟳ Refrescar", command=self._load_history,
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=12, pady=3,
+        ).pack(side="left", padx=(4, 0))
 
         hist_cols = ("id", "fecha", "tipo", "codigo", "nombre", "lote", "cantidad", "estado")
         tree_container = tk.Frame(hist_frame, bg="white")
@@ -409,10 +426,44 @@ class SalidasWindow:
             ("codigo", "Código", 80), ("nombre", "Nombre", 180), ("lote", "Lote", 100),
             ("cantidad", "Cantidad", 80), ("estado", "Estado", 90),
         ]:
-            self.history_tree.heading(col, text=heading)
-            self.history_tree.column(col, width=width, anchor="w")
+            self.history_tree.heading(col, text=heading, command=lambda c=col: self._sort_column(c, False))
+            self.history_tree.column(col, width=width, minwidth=max(50, int(width * 0.6)), anchor="w", stretch=True)
 
         self.history_tree.tag_configure("anulado", foreground="#999999")
+
+        pag_frame = tk.Frame(hist_frame, bg="white")
+        pag_frame.pack(fill="x", padx=6, pady=(2, 4))
+        tk.Button(
+            pag_frame, text="◄ Primera", command=lambda: self._ir_pagina(1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+        tk.Button(
+            pag_frame, text="Anterior", command=lambda: self._ir_pagina(self.pagina_actual - 1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+
+        self.pag_label = tk.Label(pag_frame, text="Página 1 de 1", bg="white", font=("Segoe UI", 9))
+        self.pag_label.pack(side="left", padx=10)
+
+        tk.Button(
+            pag_frame, text="Siguiente", command=lambda: self._ir_pagina(self.pagina_actual + 1),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left", padx=(0, 4))
+        tk.Button(
+            pag_frame, text="Última ►", command=lambda: self._ir_pagina(self.total_paginas),
+            bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=8, pady=3,
+        ).pack(side="left")
+
+        tk.Label(pag_frame, text="Mostrar:", bg="white").pack(side="left", padx=(15, 4))
+        por_pagina_combo = ttk.Combobox(
+            pag_frame,
+            textvariable=self.por_pagina_var,
+            values=["20", "50", "100", "200"],
+            state="readonly",
+            width=6,
+        )
+        por_pagina_combo.pack(side="left", padx=(0, 4))
+        por_pagina_combo.bind("<<ComboboxSelected>>", lambda _e: self._cambiar_por_pagina())
 
         hist_btns = tk.Frame(hist_frame, bg="white")
         hist_btns.pack(fill="x", padx=6, pady=(0, 6))
@@ -471,6 +522,8 @@ class SalidasWindow:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
         state = "readonly" if readonly else "normal"
         entry = tk.Entry(frame, textvariable=variable, state=state)
+        if required and not readonly:
+            entry.configure(highlightthickness=1, highlightcolor="#e53935", highlightbackground="#e53935")
         entry.pack(fill="x", pady=(4, 0))
         if not readonly:
             apply_focus_bindings(entry)
@@ -485,6 +538,7 @@ class SalidasWindow:
         frame.grid(row=0, column=col, padx=8, sticky="ew")
         if required:
             make_required_label(frame, label).pack(anchor="w")
+            frame.configure(highlightthickness=1, highlightcolor="#e53935", highlightbackground="#e53935")
         else:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
         combo = ttk.Combobox(frame, textvariable=variable, values=options, state="normal")
@@ -705,6 +759,15 @@ class SalidasWindow:
 
         self.nuevo_stock_var.set(f"{round(stock - qty, 6):,.2f}")
 
+    def _set_save_busy(self, busy: bool) -> None:
+        if self.save_btn is None:
+            return
+        if busy:
+            self.save_btn.config(text="Guardando...", state="disabled", bg="#8FA3BF")
+            self.window.update_idletasks()
+        else:
+            self.save_btn.config(text="Actualizar" if self.editing_id is not None else "Guardar", state="normal", bg=COLORS["primary"])
+
     def _calculate_qty_from_weight(self) -> None:
         """Calcula cantidad = (pesoInicial - pesoFinal) [/ densidad si es líquido]."""
         pi_str = self.peso_inicial_var.get().strip().replace(",", ".")
@@ -763,71 +826,133 @@ class SalidasWindow:
         except ValueError:
             return None
 
+    def _sort_column(self, col: str, reverse: bool) -> None:
+        if self.history_tree is None:
+            return
+        items = []
+        for item_id in self.history_tree.get_children(""):
+            raw = self.history_tree.set(item_id, col)
+            if col in ("id", "cantidad"):
+                try:
+                    sort_key = float(str(raw).replace(",", ""))
+                except ValueError:
+                    sort_key = -1.0
+            elif col in ("fecha",):
+                parsed = self._parse_date(str(raw))
+                sort_key = parsed or date.min
+            else:
+                sort_key = str(raw).lower()
+            items.append((sort_key, item_id))
+
+        items.sort(reverse=reverse)
+        for index, (_value, item_id) in enumerate(items):
+            self.history_tree.move(item_id, "", index)
+        self.history_tree.heading(col, command=lambda: self._sort_column(col, not reverse))
+
+    def _has_unsaved_changes(self) -> bool:
+        if self.editing_id is not None:
+            return True
+        if self.tipo_salida_var.get().strip():
+            return True
+        if self.codigo_var.get().strip():
+            return True
+        if self.lote_var.get().strip():
+            return True
+        if self.cantidad_var.get().strip():
+            return True
+        if self.obs_text is not None and self.obs_text.get("1.0", tk.END).strip():
+            return True
+        return False
+
+    def _on_close(self) -> None:
+        if self._has_unsaved_changes():
+            if self._mb_askyesno("Salir", "Hay cambios sin guardar. ¿Salir de todas formas?"):
+                self.window.destroy()
+            return
+        self.window.destroy()
+
     # ── historial y edición ───────────────────────────────────
 
     def _load_history(self, show_all: bool = False) -> None:
-        if self.history_tree is None:
-            return
-        self.history_tree.delete(*self.history_tree.get_children())
-        records = DataHandler.get_all(SALIDAS_FILE, "salidas")
-        rows = list(reversed(records))
-        if not show_all:
-            rows = rows[:15]
-        for rec in rows:
-            anulado = rec.get("anulado", False)
-            estado = "ANULADO" if anulado else "Activo"
-            row = (
-                rec.get("id", ""),
-                rec.get("fecha_salida", ""),
-                self.lkp.to_name("tipos_salida", rec.get("id_tipo_salida")) or rec.get("tipo_salida", ""),
-                substance_code(rec, self.sustancias_by_id),
-                substance_name(rec, self.sustancias_by_id),
-                rec.get("lote", ""),
-                rec.get("cantidad", ""),
-                estado,
-            )
-            tag = "anulado" if anulado else ""
-            self.history_tree.insert("", tk.END, values=row, tags=(tag,))
+        self.pagina_actual = 1
+        self._cargar_historial_paginado()
 
     def _filter_history(self) -> None:
-        fecha = self.hist_fecha_var.get().strip()
-        codigo = self.hist_codigo_var.get().strip()
-        lote = self.hist_lote_var.get().strip()
-        if not fecha and not codigo:
-            self._mb_showwarning("Filtro", "Fecha y Código son obligatorios para filtrar")
-            return
-        if self.history_tree is None:
-            return
-        self.history_tree.delete(*self.history_tree.get_children())
-        records = DataHandler.get_all(SALIDAS_FILE, "salidas")
-        for rec in reversed(records):
-            if fecha and str(rec.get("fecha_salida", "")).strip() != fecha:
-                continue
-            if codigo and substance_code(rec, self.sustancias_by_id) != codigo:
-                continue
-            if lote and str(rec.get("lote", "")).strip() != lote:
-                continue
-            anulado = rec.get("anulado", False)
-            estado = "ANULADO" if anulado else "Activo"
-            row = (
-                rec.get("id", ""),
-                rec.get("fecha_salida", ""),
-                self.lkp.to_name("tipos_salida", rec.get("id_tipo_salida")) or rec.get("tipo_salida", ""),
-                substance_code(rec, self.sustancias_by_id),
-                substance_name(rec, self.sustancias_by_id),
-                rec.get("lote", ""),
-                rec.get("cantidad", ""),
-                estado,
-            )
-            tag = "anulado" if anulado else ""
-            self.history_tree.insert("", tk.END, values=row, tags=(tag,))
+        self.pagina_actual = 1
+        self._cargar_historial_paginado()
 
     def _clear_history_filters(self) -> None:
         """Limpia filtros del historial y muestra todo."""
         self.hist_fecha_var.set("")
         self.hist_codigo_var.set("")
         self.hist_lote_var.set("")
-        self._load_history(show_all=True)
+        self.pagina_actual = 1
+        self._cargar_historial_paginado()
+
+    def _history_filtered_rows(self) -> list[dict]:
+        fecha = self.hist_fecha_var.get().strip()
+        codigo = self.hist_codigo_var.get().strip().upper()
+        lote = self.hist_lote_var.get().strip().upper()
+
+        rows = []
+        for rec in reversed(DataHandler.get_all(SALIDAS_FILE, "salidas")):
+            if fecha and str(rec.get("fecha_salida", "")).strip() != fecha:
+                continue
+            if codigo and substance_code(rec, self.sustancias_by_id).strip().upper() != codigo:
+                continue
+            if lote and lote not in str(rec.get("lote", "")).strip().upper():
+                continue
+            rows.append(rec)
+        return rows
+
+    def _cargar_historial_paginado(self) -> None:
+        if self.history_tree is None:
+            return
+
+        rows = self._history_filtered_rows()
+        try:
+            por_pagina = max(1, int(self.por_pagina_var.get().strip()))
+        except ValueError:
+            por_pagina = 50
+            self.por_pagina_var.set("50")
+
+        total = len(rows)
+        self.total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+        self.pagina_actual = max(1, min(self.pagina_actual, self.total_paginas))
+
+        start = (self.pagina_actual - 1) * por_pagina
+        end = start + por_pagina
+        page_rows = rows[start:end]
+
+        self.history_tree.delete(*self.history_tree.get_children())
+        for rec in page_rows:
+            anulado = rec.get("anulado", False)
+            estado = "ANULADO" if anulado else "Activo"
+            row = (
+                rec.get("id", ""),
+                rec.get("fecha_salida", ""),
+                self.lkp.to_name("tipos_salida", rec.get("id_tipo_salida")) or rec.get("tipo_salida", ""),
+                substance_code(rec, self.sustancias_by_id),
+                substance_name(rec, self.sustancias_by_id),
+                rec.get("lote", ""),
+                rec.get("cantidad", ""),
+                estado,
+            )
+            tag = "anulado" if anulado else ""
+            self.history_tree.insert("", tk.END, values=row, tags=(tag,))
+
+        if self.pag_label is not None:
+            self.pag_label.config(text=f"Página {self.pagina_actual} de {self.total_paginas}")
+
+    def _ir_pagina(self, pagina: int) -> None:
+        if pagina < 1 or pagina > self.total_paginas:
+            return
+        self.pagina_actual = pagina
+        self._cargar_historial_paginado()
+
+    def _cambiar_por_pagina(self) -> None:
+        self.pagina_actual = 1
+        self._cargar_historial_paginado()
 
     def _edit_selected(self) -> None:
         if self.history_tree is None:
@@ -946,6 +1071,9 @@ class SalidasWindow:
     # ── guardar ────────────────────────────────────────────────
 
     def save(self) -> None:
+        original_cursor = self.window.cget("cursor")
+        self.window.config(cursor="watch")
+        self.window.update()
         required = {
             "Tipo Salida": self.tipo_salida_var.get().strip(),
             "Fecha Salida": self.fecha_salida_var.get().strip(),
@@ -956,25 +1084,42 @@ class SalidasWindow:
         missing = [name for name, value in required.items() if not value]
         if missing:
             self._mb_showerror("Validacion", f"Completa campos obligatorios: {', '.join(missing)}")
+            self.window.config(cursor=original_cursor)
             return
 
         salida_date = self._parse_date(self.fecha_salida_var.get())
         if salida_date is None:
             self._mb_showerror("Validacion", "Fecha Salida no es valida")
+            self.window.config(cursor=original_cursor)
             return
 
         cantidad = self._to_float(self.cantidad_var.get())
         if cantidad is None or cantidad <= 0:
             self._mb_showerror("Validacion", "Cantidad debe ser numerica y mayor a 0")
+            self.window.config(cursor=original_cursor)
             return
+
+        peso_inicial = self._to_float(self.peso_inicial_var.get())
+        peso_final = self._to_float(self.peso_final_var.get())
+        if peso_inicial is not None and peso_final is not None:
+            if self.peso_inicial_var.get().strip() and self.peso_final_var.get().strip() and peso_inicial < peso_final:
+                self._mb_showerror("Validacion", "Peso Inicial debe ser mayor o igual a Peso Final")
+                self.window.config(cursor=original_cursor)
+                return
 
         codigo = self.codigo_var.get().strip()
         lote = self.lote_var.get().strip()
-        current_stock = self._calculate_stock(codigo, lote)
-
-        if cantidad > current_stock:
-            self._mb_showerror("Stock", "La cantidad de salida no puede superar el stock disponible")
+        if not lote:
+            self._mb_showerror("Validacion", "El lote es obligatorio")
+            self.window.config(cursor=original_cursor)
             return
+        entrada_lote = self._first_entrada_for(codigo, lote)
+        fecha_entrada_lote = self._parse_date(str((entrada_lote or {}).get("fecha", "")))
+        if fecha_entrada_lote is not None and salida_date < fecha_entrada_lote:
+            self._mb_showerror("Validacion", "La fecha de salida no puede ser anterior a la fecha de entrada del lote")
+            self.window.config(cursor=original_cursor)
+            return
+        current_stock = self._calculate_stock(codigo, lote)
 
         observaciones = ""
         if self.obs_text is not None:
@@ -983,6 +1128,36 @@ class SalidasWindow:
         selected_sustancia = self._substance_for_code(codigo)
         if selected_sustancia is None:
             self._mb_showerror("Validacion", "La sustancia seleccionada no existe en la maestra")
+            self.window.config(cursor=original_cursor)
+            return
+        if not bool(selected_sustancia.get("habilitada", True)):
+            self._mb_showerror("Validacion", "La sustancia está inhabilitada. No se pueden crear salidas.")
+            self.window.config(cursor=original_cursor)
+            return
+
+        if self.editing_id is not None:
+            old_record = next(
+                (r for r in DataHandler.get_all(SALIDAS_FILE, "salidas") if r.get("id") == self.editing_id),
+                None,
+            )
+            cantidad_original = self._to_float(str((old_record or {}).get("cantidad", 0))) or 0.0
+            stock_disponible = current_stock + cantidad_original
+            if cantidad > stock_disponible:
+                self._mb_showerror(
+                    "Stock insuficiente",
+                    f"No hay suficiente stock. Disponible: {stock_disponible:,.2f}",
+                )
+                self.window.config(cursor=original_cursor)
+                return
+        elif cantidad > current_stock:
+            diferencia = round(cantidad - current_stock, 6)
+            self._mb_showerror(
+                "Stock insuficiente",
+                f"Stock disponible: {current_stock:,.2f}\n"
+                f"Cantidad solicitada: {cantidad:,.2f}\n"
+                f"Faltante: {diferencia:,.2f}",
+            )
+            self.window.config(cursor=original_cursor)
             return
 
         ubicacion_tipo, id_ubicacion = self._selected_location_fields()
@@ -1010,54 +1185,66 @@ class SalidasWindow:
         # ── Modo edición ──
         if self.editing_id is not None:
             if not self._mb_askyesno("Confirmar", "¿Desea actualizar esta salida?"):
+                self.window.config(cursor=original_cursor)
                 return
-            records = DataHandler.get_all(SALIDAS_FILE, "salidas")
-            old = next((r for r in records if r.get("id") == self.editing_id), {})
-            changes: dict[str, tuple[str, str]] = {}
-            for key, new_val in salida_record.items():
-                old_val = old.get(key, "")
-                if str(old_val) != str(new_val):
-                    changes[key] = (str(old_val), str(new_val))
-            DataHandler.update_record(SALIDAS_FILE, "salidas", self.editing_id, salida_record)
-            for campo, (ant, nue) in changes.items():
-                registrar_bitacora(
-                    usuario=self.usuario,
-                    tipo_operacion="Edición",
-                    hoja="Salida",
-                    id_registro=str(self.editing_id),
-                    campo=campo,
-                    valor_anterior=ant,
-                    valor_nuevo=nue,
-                )
-            self._mb_showinfo("Éxito", "Salida actualizada correctamente")
-            sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
-            self._reset_form()
-            self._load_history()
-            return
+            self._set_save_busy(True)
+            try:
+                records = DataHandler.get_all(SALIDAS_FILE, "salidas")
+                old = next((r for r in records if r.get("id") == self.editing_id), {})
+                changes: dict[str, tuple[str, str]] = {}
+                for key, new_val in salida_record.items():
+                    old_val = old.get(key, "")
+                    if str(old_val) != str(new_val):
+                        changes[key] = (str(old_val), str(new_val))
+                DataHandler.update_record(SALIDAS_FILE, "salidas", self.editing_id, salida_record)
+                for campo, (ant, nue) in changes.items():
+                    registrar_bitacora(
+                        usuario=self.usuario,
+                        tipo_operacion="Edición",
+                        hoja="Salida",
+                        id_registro=str(self.editing_id),
+                        campo=campo,
+                        valor_anterior=ant,
+                        valor_nuevo=nue,
+                    )
+                self._mb_showinfo("Éxito", "Salida actualizada correctamente")
+                sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
+                self._reset_form()
+                self._load_history()
+                return
+            finally:
+                self._set_save_busy(False)
+                self.window.config(cursor=original_cursor)
 
         # ── Modo creación ──
         if not self._mb_askyesno("Confirmar", "¿Desea registrar esta salida?"):
+            self.window.config(cursor=original_cursor)
             return
+        self._set_save_busy(True)
+        try:
 
-        if not DataHandler.add_record(SALIDAS_FILE, "salidas", salida_record):
-            self._mb_showerror("Error", "No se pudo registrar la salida")
-            return
+            if not DataHandler.add_record(SALIDAS_FILE, "salidas", salida_record):
+                self._mb_showerror("Error", "No se pudo registrar la salida")
+                return
 
-        tipo_sal = self.tipo_salida_var.get().strip() or "Salida"
-        registrar_bitacora(
-            usuario=self.usuario,
-            tipo_operacion="Salida",
-            hoja=tipo_sal,
-            id_registro=str(salida_record.get("id", "")),
-            campo="salida_completa",
-            valor_anterior="",
-            valor_nuevo=f"{codigo} | Lote: {lote} | Cant: {cantidad}",
-        )
+            tipo_sal = self.tipo_salida_var.get().strip() or "Salida"
+            registrar_bitacora(
+                usuario=self.usuario,
+                tipo_operacion="Salida",
+                hoja=tipo_sal,
+                id_registro=str(salida_record.get("id", "")),
+                campo="salida_completa",
+                valor_anterior="",
+                valor_nuevo=f"{codigo} | Lote: {lote} | Cant: {cantidad}",
+            )
 
-        self._mb_showinfo("Exito", "Salida registrada correctamente")
-        sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
-        self._reset_form()
-        self._load_history()
+            self._mb_showinfo("Exito", "Salida registrada correctamente")
+            sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
+            self._reset_form()
+            self._load_history()
+        finally:
+            self._set_save_busy(False)
+            self.window.config(cursor=original_cursor)
 
     def _reset_form(self) -> None:
         self.editing_id = None

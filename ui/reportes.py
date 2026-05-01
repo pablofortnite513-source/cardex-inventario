@@ -1,4 +1,5 @@
 import tkinter as tk
+from copy import copy
 from datetime import date, datetime, timedelta
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable
@@ -31,9 +32,11 @@ from utils.data_handler import (
 
 try:
     from openpyxl import Workbook, load_workbook
+    from openpyxl.cell.cell import MergedCell
 except ImportError:
     Workbook = None
     load_workbook = None
+    MergedCell = None
 
 
 MESES = [
@@ -50,6 +53,147 @@ MESES = [
     "Noviembre",
     "Diciembre",
 ]
+
+
+def _resolve_template_path(*candidates):
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[0]
+
+
+def _find_rows_by_label(source_ws, labels: tuple[str, ...]) -> list[int]:
+    labels_up = {str(lbl).upper() for lbl in labels}
+    found: list[int] = []
+    for r in range(1, source_ws.max_row + 1):
+        for c in range(1, source_ws.max_column + 1):
+            text = str(source_ws.cell(r, c).value or "").strip().upper().replace("\n", " ")
+            if text in labels_up:
+                found.append(r)
+                break
+    return found
+
+
+def _set_cell_value_safe(target_ws, row: int, col: int, value):
+    cell = target_ws.cell(row=row, column=col)
+    if MergedCell is not None and isinstance(cell, MergedCell):
+        for merged in target_ws.merged_cells.ranges:
+            if merged.min_row <= row <= merged.max_row and merged.min_col <= col <= merged.max_col:
+                if row == merged.min_row and col == merged.min_col:
+                    anchor = target_ws.cell(row=row, column=col)
+                    anchor.value = value
+                    return anchor
+                return None
+    cell.value = value
+    return cell
+
+
+def _render_consolidated_template_sheet(ws, fecha_reporte: date, mes_nombre: str, data_rows: list[list]) -> None:
+    fecha_rows = _find_rows_by_label(ws, ("FECHA REPORTE",))
+    for fr in fecha_rows[:1]:
+        _set_cell_value_safe(ws, fr, 3, fecha_reporte.strftime("%Y-%m-%d"))
+        _set_cell_value_safe(ws, fr, 7, mes_nombre)
+
+    header_rows = _find_rows_by_label(ws, ("CODIGO DE USO", "CODIGO DE USO CODIGO SISTEMA"))
+    header_row = header_rows[0] if header_rows else 10
+    start_row = header_row + 1
+    max_cols = ws.max_column
+
+    style_templates = []
+    for col in range(1, max_cols + 1):
+        source = ws.cell(row=start_row, column=col)
+        style_templates.append(
+            {
+                "font": copy(source.font) if source.font else None,
+                "border": copy(source.border) if source.border else None,
+                "fill": copy(source.fill) if source.fill else None,
+                "number_format": source.number_format,
+                "alignment": copy(source.alignment) if source.alignment else None,
+            }
+        )
+
+    if data_rows:
+        ws.insert_rows(start_row + 1, amount=max(0, len(data_rows) - 1))
+
+    for row_index, row_data in enumerate(data_rows):
+        current_row = start_row + row_index
+        normalized = list(row_data[:max_cols])
+        if len(normalized) < max_cols:
+            normalized.extend([""] * (max_cols - len(normalized)))
+
+        for col, value in enumerate(normalized, start=1):
+            target = _set_cell_value_safe(ws, current_row, col, value)
+            if target is None:
+                continue
+            st = style_templates[col - 1]
+            target.font = st["font"]
+            target.border = st["border"]
+            target.fill = st["fill"]
+            target.number_format = st["number_format"]
+            target.alignment = st["alignment"]
+
+
+def _chunks(rows: list[list], size: int) -> list[list[list]]:
+    if size <= 0:
+        size = 1
+    if not rows:
+        return [[]]
+    return [rows[i:i + size] for i in range(0, len(rows), size)]
+
+
+def _combined_layout_info(template_ws) -> dict[str, int]:
+    def _norm(value) -> str:
+        return str(value or "").strip().upper().replace("\n", " ")
+
+    def _find_rows_by_label(labels: tuple[str, ...]) -> list[int]:
+        found: list[int] = []
+        label_set = {lbl.upper() for lbl in labels}
+        for r in range(1, template_ws.max_row + 1):
+            for c in range(1, template_ws.max_column + 1):
+                if _norm(template_ws.cell(r, c).value) in label_set:
+                    found.append(r)
+                    break
+        return found
+
+    def _row_has_any_value(row_num: int) -> bool:
+        return any(template_ws.cell(row_num, c).value not in (None, "") for c in range(1, template_ws.max_column + 1))
+
+    header_rows = _find_rows_by_label(("CODIGO DE USO", "CODIGO DE USO CODIGO SISTEMA"))
+    if len(header_rows) >= 2:
+        entradas_header_row = header_rows[0]
+        salidas_header_row = header_rows[1]
+    else:
+        entradas_header_row = 10
+        salidas_header_row = 28
+
+    entradas_start_row = entradas_header_row + 1
+    salidas_start_row = salidas_header_row + 1
+
+    entradas_end = salidas_header_row - 1
+    for r in range(entradas_start_row, salidas_header_row):
+        if _row_has_any_value(r):
+            entradas_end = r - 1
+            break
+    entradas_capacity = max(1, entradas_end - entradas_start_row + 1)
+
+    salidas_end = template_ws.max_row
+    salidas_has_content_below = False
+    for r in range(salidas_start_row + 1, template_ws.max_row + 1):
+        if _row_has_any_value(r):
+            salidas_end = r - 1
+            salidas_has_content_below = True
+            break
+    salidas_capacity = max(1, salidas_end - salidas_start_row + 1)
+
+    return {
+        "entradas_header_row": entradas_header_row,
+        "salidas_header_row": salidas_header_row,
+        "entradas_start_row": entradas_start_row,
+        "salidas_start_row": salidas_start_row,
+        "entradas_capacity": entradas_capacity,
+        "salidas_capacity": salidas_capacity,
+        "salidas_has_content_below": salidas_has_content_below,
+    }
 
 
 class ReportesWindow:
@@ -330,26 +474,27 @@ class ReportesWindow:
         entradas_rows = _build_entradas_rows(entradas, sustancias_by_id, unidades_by_id, tipos_entrada_by_id)
         salidas_rows = _build_salidas_rows(salidas, sustancias_by_id, unidades_by_id, tipos_salida_by_id)
 
-        wb = Workbook()
-        wb.remove(wb.active)
-        
-        template_path = REPORTES_PATH / "templates" / "template_reporte.xlsx"
-
-        _render_combined_sheet(
-            wb,
-            "Reporte",
-            template_path,
-            corte,
-            periodo_label,
-            entradas_rows,
-            salidas_rows,
+        template_path = _resolve_template_path(
+            REPORTES_PATH / "templates" / "template_reporte.xlsx",
+            REPORTES_PATH / "templates" / "templatereporte.xlsx",
         )
+
+        wb = load_workbook(template_path)
+        entradas_ws = wb["template"] if "template" in wb.sheetnames else wb[wb.sheetnames[0]]
+        salidas_ws = wb["Hoja1"] if "Hoja1" in wb.sheetnames else wb[wb.sheetnames[1] if len(wb.sheetnames) > 1 else wb.sheetnames[0]]
+
+        _render_consolidated_template_sheet(entradas_ws, corte, periodo_label, entradas_rows)
+        _render_consolidated_template_sheet(salidas_ws, corte, periodo_label, salidas_rows)
 
         try:
             wb.save(save_path)
             messagebox.showinfo(
                 "Reporte generado",
-                f"Excel generado correctamente:\n{save_path}",
+                (
+                    f"Excel generado correctamente:\n{save_path}\n\n"
+                    f"Entradas exportadas: {len(entradas_rows)}\n"
+                    f"Salidas exportadas: {len(salidas_rows)}"
+                ),
                 parent=self.window,
             )
         except Exception as e:
@@ -373,7 +518,10 @@ class ReportesWindow:
             return
         _, _, suffix, matcher = resolved
 
-        template_path = REPORTES_PATH / "templates" / "template_reporteentrada.xlsx"
+        template_path = _resolve_template_path(
+            REPORTES_PATH / "templates" / "template_reporteentrada.xlsx",
+            REPORTES_PATH / "templates" / "templatereporteentrada.xlsx",
+        )
         if not template_path.exists():
             messagebox.showerror(
                 "Plantilla no encontrada",
@@ -421,7 +569,10 @@ class ReportesWindow:
             _render_template_table(template_path, save_path, rows)
             messagebox.showinfo(
                 "Reporte generado",
-                f"Excel generado correctamente:\n{save_path}",
+                (
+                    f"Excel generado correctamente:\n{save_path}\n\n"
+                    f"Registros exportados: {len(rows)}"
+                ),
                 parent=self.window,
             )
         except Exception as e:
@@ -445,7 +596,10 @@ class ReportesWindow:
             return
         _, _, suffix, matcher = resolved
 
-        template_path = REPORTES_PATH / "templates" / "template_reportesalida.xlsx"
+        template_path = _resolve_template_path(
+            REPORTES_PATH / "templates" / "template_reportesalida.xlsx",
+            REPORTES_PATH / "templates" / "templatereportesalida.xlsx",
+        )
         if not template_path.exists():
             messagebox.showerror(
                 "Plantilla no encontrada",
@@ -492,7 +646,10 @@ class ReportesWindow:
             _render_template_table(template_path, save_path, rows)
             messagebox.showinfo(
                 "Reporte generado",
-                f"Excel generado correctamente:\n{save_path}",
+                (
+                    f"Excel generado correctamente:\n{save_path}\n\n"
+                    f"Registros exportados: {len(rows)}"
+                ),
                 parent=self.window,
             )
         except Exception as e:
@@ -534,7 +691,7 @@ def _build_entradas_rows(
                 sust.get("nombre", ""),
                 rec.get("lote", ""),
                 cantidad_reporte,
-                uni.get("codigo", ""),
+                uni.get("nombre", uni.get("codigo", "")),
                 tipos_entrada_by_id.get(int(rec.get("id_tipo_entrada", 0) or 0), ""),
                 rec.get("sc_nc", "No controlada"),
                 rec.get("observaciones", "") or "N/A",
@@ -560,7 +717,7 @@ def _build_salidas_rows(
                 sust.get("nombre", ""),
                 rec.get("lote", ""),
                 rec.get("cantidad", 0),
-                uni.get("codigo", ""),
+                uni.get("nombre", uni.get("codigo", "")),
                 tipos_salida_by_id.get(int(rec.get("id_tipo_salida", 0) or 0), ""),
                 rec.get("sc_nc", "No controlada"),
                 rec.get("observaciones", "") or "N/A",
@@ -580,6 +737,31 @@ def _render_combined_sheet(
 ):
     """Render one sheet from template: entradas section + dynamic salidas section below."""
 
+    def _find_rows_by_label(source_ws, labels: tuple[str, ...]) -> list[int]:
+        labels_up = {str(lbl).upper() for lbl in labels}
+        found: list[int] = []
+        for r in range(1, source_ws.max_row + 1):
+            for c in range(1, source_ws.max_column + 1):
+                text = str(source_ws.cell(r, c).value or "").strip().upper().replace("\n", " ")
+                if text in labels_up:
+                    found.append(r)
+                    break
+        return found
+
+    def _set_cell_value_safe(target_ws, row: int, col: int, value):
+        cell = target_ws.cell(row=row, column=col)
+        if MergedCell is not None and isinstance(cell, MergedCell):
+            for merged in target_ws.merged_cells.ranges:
+                if merged.min_row <= row <= merged.max_row and merged.min_col <= col <= merged.max_col:
+                    # Solo se puede escribir en la celda ancla del rango combinado.
+                    if row == merged.min_row and col == merged.min_col:
+                        anchor = target_ws.cell(row=row, column=col)
+                        anchor.value = value
+                        return anchor
+                    return None
+        cell.value = value
+        return cell
+
     try:
         template_wb = load_workbook(template_path)
         template_ws = template_wb.active
@@ -591,11 +773,11 @@ def _render_combined_sheet(
             for cell in row:
                 new_cell = ws.cell(row=cell.row, column=cell.column, value=cell.value)
                 if cell.has_style:
-                    new_cell.font = cell.font.copy() if cell.font else None
-                    new_cell.border = cell.border.copy() if cell.border else None
-                    new_cell.fill = cell.fill.copy() if cell.fill else None
+                    new_cell.font = copy(cell.font) if cell.font else None
+                    new_cell.border = copy(cell.border) if cell.border else None
+                    new_cell.fill = copy(cell.fill) if cell.fill else None
                     new_cell.number_format = cell.number_format
-                    new_cell.alignment = cell.alignment.copy() if cell.alignment else None
+                    new_cell.alignment = copy(cell.alignment) if cell.alignment else None
         # Copy images (logo)
         from openpyxl.drawing.image import Image
 
@@ -620,14 +802,22 @@ def _render_combined_sheet(
         for row_dim in template_ws.row_dimensions:
             ws.row_dimensions[row_dim].height = template_ws.row_dimensions[row_dim].height
 
-        ENTRADAS_START_ROW = 11
-        SALIDAS_START_ROW = 33
+        layout = _combined_layout_info(template_ws)
+        ENTRADAS_START_ROW = layout["entradas_start_row"]
+        SALIDAS_START_ROW = layout["salidas_start_row"]
+        start_salidas = SALIDAS_START_ROW
 
-        # Fill general data in template placeholders.
-        ws["C7"] = fecha_reporte.strftime("%Y-%m-%d")
-        ws["G7"] = mes_nombre
-        ws["C29"] = fecha_reporte.strftime("%Y-%m-%d")
-        ws["G29"] = mes_nombre
+        # Fill report date/month in both sections (rows with "Fecha Reporte" label).
+        fecha_rows = _find_rows_by_label(template_ws, ("FECHA REPORTE",))
+        for fr in fecha_rows[:2]:
+            _set_cell_value_safe(ws, fr, 3, fecha_reporte.strftime("%Y-%m-%d"))
+            _set_cell_value_safe(ws, fr, 7, mes_nombre)
+
+        if not fecha_rows:
+            ws["C7"] = fecha_reporte.strftime("%Y-%m-%d")
+            ws["G7"] = mes_nombre
+            ws["C25"] = fecha_reporte.strftime("%Y-%m-%d")
+            ws["G25"] = mes_nombre
 
         # ENTRADAS section (fixed block from template).
         start_entradas = ENTRADAS_START_ROW
@@ -635,27 +825,30 @@ def _render_combined_sheet(
             target_row = start_entradas + i
             for j, value in enumerate(row_data, start=1):
                 base_cell = template_ws.cell(row=ENTRADAS_START_ROW, column=j)
-                target = ws.cell(row=target_row, column=j, value=value)
+                target = _set_cell_value_safe(ws, target_row, j, value)
+                if target is None:
+                    continue
                 if base_cell.has_style:
-                    target.font = base_cell.font.copy() if base_cell.font else None
-                    target.border = base_cell.border.copy() if base_cell.border else None
-                    target.fill = base_cell.fill.copy() if base_cell.fill else None
+                    target.font = copy(base_cell.font) if base_cell.font else None
+                    target.border = copy(base_cell.border) if base_cell.border else None
+                    target.fill = copy(base_cell.fill) if base_cell.fill else None
                     target.number_format = base_cell.number_format
-                    target.alignment = base_cell.alignment.copy() if base_cell.alignment else None
+                    target.alignment = copy(base_cell.alignment) if base_cell.alignment else None
 
         # SALIDAS section (fixed block from template).
-        start_salidas = SALIDAS_START_ROW
         for i, row_data in enumerate(salidas_rows):
             target_row = start_salidas + i
             for j, value in enumerate(row_data, start=1):
                 source = template_ws.cell(row=SALIDAS_START_ROW, column=j)
-                target = ws.cell(row=target_row, column=j, value=value)
+                target = _set_cell_value_safe(ws, target_row, j, value)
+                if target is None:
+                    continue
                 if source.has_style:
-                    target.font = source.font.copy() if source.font else None
-                    target.border = source.border.copy() if source.border else None
-                    target.fill = source.fill.copy() if source.fill else None
+                    target.font = copy(source.font) if source.font else None
+                    target.border = copy(source.border) if source.border else None
+                    target.fill = copy(source.fill) if source.fill else None
                     target.number_format = source.number_format
-                    target.alignment = source.alignment.copy() if source.alignment else None
+                    target.alignment = copy(source.alignment) if source.alignment else None
 
         return ws
     except Exception as e:
@@ -665,6 +858,19 @@ def _render_combined_sheet(
 
 
 def _render_template_table(template_path, save_path: str, data_rows: list[list], start_row: int = 2) -> None:
+    def _set_cell_value_safe(target_ws, row: int, col: int, value):
+        cell = target_ws.cell(row=row, column=col)
+        if MergedCell is not None and isinstance(cell, MergedCell):
+            for merged in target_ws.merged_cells.ranges:
+                if merged.min_row <= row <= merged.max_row and merged.min_col <= col <= merged.max_col:
+                    if row == merged.min_row and col == merged.min_col:
+                        anchor = target_ws.cell(row=row, column=col)
+                        anchor.value = value
+                        return anchor
+                    return None
+        cell.value = value
+        return cell
+
     wb = load_workbook(template_path)
     ws = wb.active
 
@@ -674,32 +880,33 @@ def _render_template_table(template_path, save_path: str, data_rows: list[list],
         source = ws.cell(row=start_row, column=col)
         style_templates.append(
             {
-                "font": source.font.copy() if source.font else None,
-                "border": source.border.copy() if source.border else None,
-                "fill": source.fill.copy() if source.fill else None,
+                "font": copy(source.font) if source.font else None,
+                "border": copy(source.border) if source.border else None,
+                "fill": copy(source.fill) if source.fill else None,
                 "number_format": source.number_format,
-                "alignment": source.alignment.copy() if source.alignment else None,
+                "alignment": copy(source.alignment) if source.alignment else None,
             }
         )
 
+    if data_rows:
+        ws.insert_rows(start_row + 1, amount=max(0, len(data_rows) - 1))
+
     for i, row_data in enumerate(data_rows):
         current_row = start_row + i
-        ws.insert_rows(current_row)
         normalized = list(row_data[:max_cols])
         if len(normalized) < max_cols:
             normalized.extend([""] * (max_cols - len(normalized)))
 
         for col, value in enumerate(normalized, start=1):
-            target = ws.cell(row=current_row, column=col, value=value)
+            target = _set_cell_value_safe(ws, current_row, col, value)
+            if target is None:
+                continue
             st = style_templates[col - 1]
             target.font = st["font"]
             target.border = st["border"]
             target.fill = st["fill"]
             target.number_format = st["number_format"]
             target.alignment = st["alignment"]
-
-    if data_rows:
-        ws.delete_rows(start_row + len(data_rows))
 
     wb.save(save_path)
 
@@ -716,6 +923,19 @@ def _build_entradas_detailed_rows(
 ) -> list[list]:
     rows: list[list] = []
     for rec in entradas:
+        costo_unitario = _safe_float(rec.get("costo_unitario", ""))
+        total_cantidad = _safe_float(rec.get("total", rec.get("cantidad", 0)))
+        costo_total = rec.get("costo_total", "")
+        if costo_total in ("", None):
+            costo_total = round(costo_unitario * total_cantidad, 6) if costo_unitario and total_cantidad else ""
+
+        vigencia_documento = rec.get("vigencia_documento", "")
+        if vigencia_documento in ("", None):
+            fecha_doc = _parse_iso_date(rec.get("fecha_documento", ""))
+            fecha_venc = _parse_iso_date(rec.get("fecha_vencimiento", ""))
+            if fecha_doc is not None and fecha_venc is not None:
+                vigencia_documento = (fecha_venc - fecha_doc).days
+
         rows.append(
             [
                 lkp.to_name("tipos_entrada", rec.get("id_tipo_entrada"), ""),
@@ -725,7 +945,7 @@ def _build_entradas_detailed_rows(
                 str(rec.get("lote", "")),
                 substance_code_system(rec, sustancias_by_id),
                 str(rec.get("costo_unitario", "")),
-                str(rec.get("costo_total", "")),
+                str(costo_total),
                 str(rec.get("factura", "")),
                 rec.get("cantidad", ""),
                 str(rec.get("presentacion", "")),
@@ -738,7 +958,7 @@ def _build_entradas_detailed_rows(
                 _bool_label(rec.get("msds", False)),
                 str(rec.get("fecha_vencimiento", "")),
                 str(rec.get("fecha_documento", "")),
-                str(rec.get("vigencia_documento", "")),
+                str(vigencia_documento),
                 location_name(rec, locations_by_key),
                 lkp.to_name("condiciones", rec.get("id_condicion_almacenamiento"), str(rec.get("condicion_almacenamiento", ""))),
                 str(rec.get("observaciones", "")),
@@ -850,6 +1070,18 @@ def _build_salidas_detailed_rows(
         if not ubicacion_origen and entrada_ref is not None:
             ubicacion_origen = location_name(entrada_ref, locations_by_key)
 
+        densidad = rec.get("densidad", "")
+        if densidad in ("", None) and entrada_ref is not None:
+            densidad = entrada_ref.get("densidad", "")
+
+        peso_inicial = rec.get("peso_inicial", "")
+        if peso_inicial in ("", None) and stock_before not in ("", None):
+            peso_inicial = stock_before
+
+        peso_final = rec.get("peso_final", "")
+        if peso_final in ("", None) and stock_after not in ("", None):
+            peso_final = stock_after
+
         rows.append(
             [
                 lkp.to_name("tipos_salida", rec.get("id_tipo_salida"), ""),
@@ -864,9 +1096,9 @@ def _build_salidas_detailed_rows(
                 stock_after,
                 lkp.to_name("unidades", rec.get("id_unidad"), str(rec.get("unidad", ""))),
                 rec.get("cantidad", ""),
-                str(rec.get("densidad", "")),
-                str(rec.get("peso_inicial", "")),
-                str(rec.get("peso_final", "")),
+                str(densidad),
+                str(peso_inicial),
+                str(peso_final),
                 _bool_label(rec.get("liquido", False)),
                 str(rec.get("observaciones", "")),
                 _bool_label(rec.get("en_uso", False)),

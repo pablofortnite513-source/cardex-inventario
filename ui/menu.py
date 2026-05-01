@@ -1,11 +1,15 @@
 import importlib
 import tkinter as tk
+from datetime import date, datetime
 
 from config.config import (
     ALMACENES_FILE,
     CONDICIONES_FILE,
+    ENTRADAS_FILE,
     IMAGES_PATH,
     PROVEEDORES_FILE,
+    SALIDAS_FILE,
+    SUSTANCIAS_FILE,
     TIPOS_ENTRADA_FILE,
     TIPOS_SALIDA_FILE,
     UBICACIONES_FILE,
@@ -22,6 +26,7 @@ from ui.stock_analista import StockAnalistaWindow
 from ui.stock import StockWindow
 from ui.users import CreateUserWindow
 from ui.vigencias import VigenciasWindow
+from utils.data_handler import DataHandler
 
 
 class MainMenuWindow:
@@ -35,7 +40,11 @@ class MainMenuWindow:
         self.main_image_tk = None
         self.button_images = {}
         self._open_windows: list[tk.Toplevel] = []
+        self.notify_container: tk.Frame | None = None
+        self._notifications_expanded = False
+        self._cached_notifications: list[str] = []
         self._build_ui()
+        self._check_notifications()
 
     def _build_ui(self) -> None:
         self.root.configure(bg=COLORS["secondary"])
@@ -95,6 +104,20 @@ class MainMenuWindow:
             padx=16,
             pady=3,
         ).pack(side="right", padx=(0, 8))
+
+        notify_frame = tk.Frame(wrapper, bg="#FFF8E1", bd=1, relief="solid", padx=10, pady=5)
+        notify_frame.pack(fill="x", pady=(0, 8))
+
+        tk.Label(
+            notify_frame,
+            text="⚠️ NOTIFICACIONES",
+            bg="#FFF8E1",
+            fg="#E65100",
+            font=("Segoe UI", 9, "bold"),
+        ).pack(anchor="w")
+
+        self.notify_container = tk.Frame(notify_frame, bg="#FFF8E1")
+        self.notify_container.pack(fill="x", pady=(2, 0))
 
         # ── Body: imagen + paneles ──
         body = tk.Frame(wrapper, bg="white")
@@ -348,6 +371,144 @@ class MainMenuWindow:
             self._no_access(module_label)
             return False
         return True
+
+    @staticmethod
+    def _safe_float(value) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _parse_date(value: str) -> date | None:
+        raw = (value or "").strip()
+        if not raw:
+            return None
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(raw, fmt).date()
+            except ValueError:
+                continue
+        return None
+
+    def _check_notifications(self) -> None:
+        """Verifica y muestra notificaciones de vencimientos y stock bajo."""
+        if self.notify_container is None or not self.notify_container.winfo_exists():
+            return
+
+        notifications: list[str] = []
+        today = date.today()
+
+        entradas = [r for r in DataHandler.get_all(ENTRADAS_FILE, "entradas") if not r.get("anulado")]
+        salidas = [r for r in DataHandler.get_all(SALIDAS_FILE, "salidas") if not r.get("anulado")]
+        sustancias = DataHandler.load_json(SUSTANCIAS_FILE).get("maestrasSustancias", [])
+
+        sust_by_id = {s.get("id"): s for s in sustancias if s.get("id") is not None}
+
+        stock_lote: dict[tuple[object, str], float] = {}
+        for r in entradas:
+            key = (r.get("id_sustancia"), str(r.get("lote", "")).strip())
+            stock_lote[key] = stock_lote.get(key, 0.0) + self._safe_float(r.get("total", 0))
+        for r in salidas:
+            key = (r.get("id_sustancia"), str(r.get("lote", "")).strip())
+            stock_lote[key] = stock_lote.get(key, 0.0) - self._safe_float(r.get("cantidad", 0))
+
+        # 1) Vencidos y 2) Por vencer
+        for r in entradas:
+            sid = r.get("id_sustancia")
+            lote = str(r.get("lote", "")).strip()
+            if not lote:
+                continue
+            stock_actual = stock_lote.get((sid, lote), 0.0)
+            if stock_actual <= 0:
+                continue
+
+            fv = self._parse_date(r.get("fecha_vencimiento", ""))
+            if fv is None:
+                continue
+            dias = (fv - today).days
+            nombre = str(sust_by_id.get(sid, {}).get("nombre", f"ID {sid}"))
+
+            if dias < 0:
+                notifications.append(f"{nombre} - Lote {lote} - Vencido hace {abs(dias)} días")
+            elif dias <= 30:
+                notifications.append(f"{nombre} - Lote {lote} - Vence en {dias} días")
+
+        # 3) Stock bajo por sustancia
+        stock_por_sustancia: dict[object, float] = {}
+        for (sid, _lote), stk in stock_lote.items():
+            stock_por_sustancia[sid] = stock_por_sustancia.get(sid, 0.0) + stk
+
+        for sid, stock in stock_por_sustancia.items():
+            sust = sust_by_id.get(sid, {})
+            minimo = self._safe_float(sust.get("cantidad_minima_stock", sust.get("cantidad_minima", 0)))
+            if minimo > 0 and stock < minimo:
+                nombre = str(sust.get("nombre", f"ID {sid}"))
+                notifications.append(f"{nombre} - Stock: {round(stock, 2)} / Mínimo: {round(minimo, 2)}")
+
+        self._cached_notifications = notifications
+        self._render_notifications()
+
+        self.root.after(1800000, self._check_notifications)
+
+    def _render_notifications(self) -> None:
+        if self.notify_container is None or not self.notify_container.winfo_exists():
+            return
+
+        for widget in self.notify_container.winfo_children():
+            widget.destroy()
+
+        notifications = self._cached_notifications
+
+        if not notifications:
+            tk.Label(
+                self.notify_container,
+                text="✓ Todo en orden",
+                bg="#FFF8E1",
+                fg="#2E7D32",
+                font=("Segoe UI", 9),
+            ).pack(anchor="w")
+        else:
+            visible_count = len(notifications) if self._notifications_expanded else min(3, len(notifications))
+            for notif in notifications[:visible_count]:
+                tk.Label(
+                    self.notify_container,
+                    text=f"• {notif}",
+                    bg="#FFF8E1",
+                    fg="#D32F2F",
+                    font=("Segoe UI", 9),
+                    wraplength=600,
+                    justify="left",
+                ).pack(anchor="w")
+
+            if len(notifications) > 3:
+                if not self._notifications_expanded:
+                    tk.Label(
+                        self.notify_container,
+                        text=f"... y {len(notifications) - 3} más",
+                        bg="#FFF8E1",
+                        fg="#666",
+                        font=("Segoe UI", 9, "italic"),
+                    ).pack(anchor="w")
+
+                tk.Button(
+                    self.notify_container,
+                    text="Ver menos ▲" if self._notifications_expanded else "Ver más ▼",
+                    command=self._toggle_notifications,
+                    bg="#FFF8E1",
+                    fg="#1F4F8A",
+                    relief="flat",
+                    cursor="hand2",
+                    padx=0,
+                    pady=0,
+                    font=("Segoe UI", 9, "bold"),
+                    activebackground="#FFF8E1",
+                    activeforeground="#1F4F8A",
+                ).pack(anchor="w", pady=(2, 0))
+
+    def _toggle_notifications(self) -> None:
+        self._notifications_expanded = not self._notifications_expanded
+        self._render_notifications()
 
     def open_entradas(self) -> None:
         if not self._guard_access("entradas", "Entradas"):

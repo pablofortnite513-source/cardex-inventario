@@ -422,11 +422,15 @@ class SubstanceMasterWindow:
         )
 
     def save(self) -> None:
+        original_cursor = self.window.cget("cursor")
+        self.window.config(cursor="watch")
+        self.window.update()
         codigo = self.inputs["Codigo"].get().strip()
         nombre = self.inputs["Nombre del Producto"].get().strip()
 
         if not codigo or not nombre:
             messagebox.showerror("Validacion", "Codigo y Nombre del Producto son obligatorios")
+            self.window.config(cursor=original_cursor)
             return
 
         data = DataHandler.load_json(SUSTANCIAS_FILE)
@@ -434,6 +438,7 @@ class SubstanceMasterWindow:
 
         if any(item.get("codigo") == codigo for item in sustancias):
             messagebox.showerror("Validacion", "Ya existe una sustancia con ese codigo")
+            self.window.config(cursor=original_cursor)
             return
 
         ubicacion_tipo, id_ubicacion = self._selected_location_fields()
@@ -454,6 +459,7 @@ class SubstanceMasterWindow:
 
         if not DataHandler.add_record(SUSTANCIAS_FILE, "maestrasSustancias", record):
             messagebox.showerror("Error", "No se pudo guardar la sustancia")
+            self.window.config(cursor=original_cursor)
             return
 
         messagebox.showinfo("Exito", "Sustancia guardada correctamente")
@@ -468,6 +474,7 @@ class SubstanceMasterWindow:
         )
         self._clear_form()
         self.reload_items()
+        self.window.config(cursor=original_cursor)
 
     def update_selected(self) -> None:
         if self.selected_id is None:
