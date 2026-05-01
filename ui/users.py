@@ -292,6 +292,11 @@ class CreateUserWindow:
             return
 
         updates = {
+            "nombre": target.get("nombre", ""),
+            "usuario": target.get("usuario", ""),
+            "contrasena": target.get("contrasena", ""),
+            "rol": target.get("rol", ""),
+            "permisos": target.get("permisos", {}),
             "firma_path": str(dest),
             "firma_password": password,
         }
