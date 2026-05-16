@@ -8,6 +8,7 @@ import tkinter as tk
 import tkinter.messagebox as mb
 from database import init_db_hybrid
 from ui.login import LoginWindow
+from ui.window_utils import maximize_window
 
 
 def _install_messagebox_parent_fallback(root: tk.Tk) -> None:
@@ -46,10 +47,10 @@ def main():
 
     root = tk.Tk()
     root.title("CECIF - Kardex Reactivos")
-    root.geometry("600x400")
+    maximize_window(root)
 
     _install_messagebox_parent_fallback(root)
-    app = LoginWindow(root)
+    LoginWindow(root)
     root.mainloop()
 
 

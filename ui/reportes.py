@@ -19,6 +19,7 @@ from config.config import (
     UNIDADES_FILE,
 )
 from ui.styles import build_header
+from ui.window_utils import maximize_window
 from utils.data_handler import (
     DataHandler,
     Lookups,
@@ -204,6 +205,7 @@ class ReportesWindow:
         self.window.title("Reportes")
         self.window.geometry("760x340")
         self.window.configure(bg=COLORS["secondary"])
+        maximize_window(self.window)
 
         today = date.today()
         self.mes_var = tk.StringVar(value=MESES[today.month - 1])

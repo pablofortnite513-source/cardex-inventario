@@ -20,6 +20,7 @@ from config.config import (
 from ui.bitacora import registrar_bitacora
 from ui.input_behaviors import bind_code_combo_autofill, bind_uppercase
 from ui.styles import apply_styles_to_window, make_required_label, apply_focus_bindings, build_header
+from ui.window_utils import maximize_window
 from utils.data_handler import (
     DataHandler,
     Lookups,
@@ -41,6 +42,7 @@ class SalidasWindow:
         self.window.title("Sistema de Gestion - Salidas")
         self.window.geometry("1280x880")
         self.window.configure(bg=COLORS["secondary"])
+        maximize_window(self.window)
         self.usuario = usuario
         self.rol = rol.lower()
         self.editing_id: int | None = None
@@ -82,8 +84,15 @@ class SalidasWindow:
         self.total_paginas = 1
         self.por_pagina_var = tk.StringVar(value="50")
         self.pag_label: tk.Label | None = None
+        self._entradas_cache: list[dict] = []
+        self._salidas_cache: list[dict] = []
+        self._stock_by_key: dict[tuple[object, str], float] = {}
+        self._lotes_by_code: dict[str, list[str]] = {}
+        self._first_entrada_by_code_lote: dict[tuple[str, str], dict] = {}
+        self._location_options_by_code_lote: dict[tuple[str, str], list[str]] = {}
 
         self._load_options()
+        self._refresh_stock_snapshot()
         self._build_ui()
         self._bind_events()
         self.window.bind("<Escape>", lambda _e: self._on_close())
@@ -138,10 +147,80 @@ class SalidasWindow:
         )
 
     def _get_entradas(self) -> list[dict]:
-        return DataHandler.get_all(ENTRADAS_FILE, "entradas")
+        return self._entradas_cache
 
     def _get_salidas(self) -> list[dict]:
-        return DataHandler.get_all(SALIDAS_FILE, "salidas")
+        return self._salidas_cache
+
+    def _refresh_stock_snapshot(self) -> None:
+        """Cachea entradas/salidas y mapas derivados para evitar recalcular en cada interacción."""
+        self._entradas_cache = DataHandler.get_all(ENTRADAS_FILE, "entradas")
+        self._salidas_cache = DataHandler.get_all(SALIDAS_FILE, "salidas")
+
+        stock_by_key: dict[tuple[object, str], float] = {}
+        first_by_key: dict[tuple[object, str], dict] = {}
+        location_by_key: dict[tuple[object, str], list[str]] = {}
+
+        for rec in self._entradas_cache:
+            if rec.get("anulado"):
+                continue
+            substance_key = rec.get("id_sustancia", rec.get("codigo", ""))
+            lote = str(rec.get("lote", "")).strip()
+            if not lote:
+                continue
+            key = (substance_key, lote)
+            stock_by_key[key] = stock_by_key.get(key, 0.0) + self._safe_float(rec.get("total", 0))
+            if key not in first_by_key:
+                first_by_key[key] = rec
+
+            loc_name = location_name(rec, self.locations_by_key)
+            if loc_name:
+                current = location_by_key.setdefault(key, [])
+                if loc_name not in current:
+                    current.append(loc_name)
+
+        for rec in self._salidas_cache:
+            if rec.get("anulado"):
+                continue
+            substance_key = rec.get("id_sustancia", rec.get("codigo", ""))
+            lote = str(rec.get("lote", "")).strip()
+            if not lote:
+                continue
+            key = (substance_key, lote)
+            stock_by_key[key] = stock_by_key.get(key, 0.0) - self._safe_float(rec.get("cantidad", 0))
+
+        lotes_by_code: dict[str, list[str]] = {}
+        first_by_code_lote: dict[tuple[str, str], dict] = {}
+        location_by_code_lote: dict[tuple[str, str], list[str]] = {}
+
+        for (substance_key, lote), stock in stock_by_key.items():
+            if stock <= 0:
+                continue
+            code = ""
+            if substance_key in self.sustancias_by_id:
+                code = str(self.sustancias_by_id[substance_key].get("codigo", "")).strip()
+            elif substance_key is not None:
+                code = str(substance_key).strip()
+            if not code:
+                continue
+
+            lotes = lotes_by_code.setdefault(code, [])
+            if lote not in lotes:
+                lotes.append(lote)
+
+            key = (substance_key, lote)
+            first = first_by_key.get(key)
+            if first is not None:
+                first_by_code_lote[(code, lote)] = first
+            location_by_code_lote[(code, lote)] = location_by_key.get(key, [])
+
+        for code in list(lotes_by_code.keys()):
+            lotes_by_code[code] = sorted(lotes_by_code[code])
+
+        self._stock_by_key = stock_by_key
+        self._lotes_by_code = lotes_by_code
+        self._first_entrada_by_code_lote = first_by_code_lote
+        self._location_options_by_code_lote = location_by_code_lote
 
     def _substance_for_code(self, code: str) -> dict | None:
         return substance_from_code(self.sustancias_by_code, code)
@@ -163,82 +242,31 @@ class SalidasWindow:
 
     def _calculate_stock(self, codigo: str, lote: str) -> float:
         """Stock = Sum(Entradas.Total) - Sum(Salidas.Cantidad) por sustancia+lote, excluyendo anulados."""
-        entradas = self._get_entradas()
-        salidas = self._get_salidas()
         sustancia = self._substance_for_code(codigo)
         substance_key = sustancia.get("id") if sustancia is not None else codigo
-
-        total_entrada = sum(
-            self._safe_float(r.get("total", 0))
-            for r in entradas
-            if not r.get("anulado")
-            and r.get("id_sustancia", r.get("codigo", "")) == substance_key
-            and str(r.get("lote", "")).strip() == lote
-        )
-        total_salida = sum(
-            self._safe_float(r.get("cantidad", 0))
-            for r in salidas
-            if not r.get("anulado")
-            and r.get("id_sustancia", r.get("codigo", "")) == substance_key
-            and str(r.get("lote", "")).strip() == lote
-        )
-        return round(total_entrada - total_salida, 6)
+        return round(self._stock_by_key.get((substance_key, lote), 0.0), 6)
 
     def _available_codes(self) -> list[str]:
-        entradas = self._get_entradas()
         active_codes = {
             str(s.get("codigo", "")).strip()
             for s in self.sustancias_by_id.values()
             if str(s.get("codigo", "")).strip() and bool(s.get("habilitada", True))
         }
-        codes = {
-            substance_code(r, self.sustancias_by_id)
-            for r in entradas
-            if substance_code(r, self.sustancias_by_id) in active_codes
-        }
-        return sorted(code for code in codes if self._lotes_for_code(code))
+        return sorted(code for code in self._lotes_by_code.keys() if code in active_codes)
 
     def _lotes_for_code(self, code: str) -> list[str]:
-        entradas = self._get_entradas()
-        sustancia = self._substance_for_code(code)
-        substance_key = sustancia.get("id") if sustancia is not None else code
-        lotes = {
-            str(r.get("lote", "")).strip()
-            for r in entradas
-            if r.get("id_sustancia", r.get("codigo", "")) == substance_key and str(r.get("lote", "")).strip()
-        }
-        # Filtrar lotes sin stock disponible
-        return sorted(l for l in lotes if self._calculate_stock(code, l) > 0)
+        return list(self._lotes_by_code.get(code, []))
 
     def _first_entrada_for(self, codigo: str, lote: str = "") -> dict | None:
-        sustancia = self._substance_for_code(codigo)
-        substance_key = sustancia.get("id") if sustancia is not None else codigo
-        for r in self._get_entradas():
-            if r.get("id_sustancia", r.get("codigo", "")) != substance_key:
-                continue
-            if lote and str(r.get("lote", "")).strip() != lote:
-                continue
-            return r
-        return None
+        if lote:
+            return self._first_entrada_by_code_lote.get((codigo, lote))
+        lotes = self._lotes_for_code(codigo)
+        if not lotes:
+            return None
+        return self._first_entrada_by_code_lote.get((codigo, lotes[0]))
 
     def _location_options_for(self, codigo: str, lote: str) -> list[str]:
-        sustancia = self._substance_for_code(codigo)
-        substance_key = sustancia.get("id") if sustancia is not None else codigo
-        options: list[str] = []
-        seen: set[str] = set()
-        for rec in self._get_entradas():
-            if rec.get("anulado"):
-                continue
-            if rec.get("id_sustancia", rec.get("codigo", "")) != substance_key:
-                continue
-            if lote and str(rec.get("lote", "")).strip() != lote:
-                continue
-            name = location_name(rec, self.locations_by_key)
-            if not name or name in seen:
-                continue
-            seen.add(name)
-            options.append(name)
-        return options
+        return list(self._location_options_by_code_lote.get((codigo, lote), []))
 
     # ── UI ─────────────────────────────────────────────────────
 
@@ -522,8 +550,6 @@ class SalidasWindow:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
         state = "readonly" if readonly else "normal"
         entry = tk.Entry(frame, textvariable=variable, state=state)
-        if required and not readonly:
-            entry.configure(highlightthickness=1, highlightcolor="#e53935", highlightbackground="#e53935")
         entry.pack(fill="x", pady=(4, 0))
         if not readonly:
             apply_focus_bindings(entry)
@@ -538,7 +564,6 @@ class SalidasWindow:
         frame.grid(row=0, column=col, padx=8, sticky="ew")
         if required:
             make_required_label(frame, label).pack(anchor="w")
-            frame.configure(highlightthickness=1, highlightcolor="#e53935", highlightbackground="#e53935")
         else:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
         combo = ttk.Combobox(frame, textvariable=variable, values=options, state="normal")
@@ -874,6 +899,7 @@ class SalidasWindow:
     # ── historial y edición ───────────────────────────────────
 
     def _load_history(self, show_all: bool = False) -> None:
+        self._refresh_stock_snapshot()
         self.pagina_actual = 1
         self._cargar_historial_paginado()
 
@@ -895,7 +921,7 @@ class SalidasWindow:
         lote = self.hist_lote_var.get().strip().upper()
 
         rows = []
-        for rec in reversed(DataHandler.get_all(SALIDAS_FILE, "salidas")):
+        for rec in reversed(self._salidas_cache):
             if fecha and str(rec.get("fecha_salida", "")).strip() != fecha:
                 continue
             if codigo and substance_code(rec, self.sustancias_by_id).strip().upper() != codigo:
@@ -1065,6 +1091,7 @@ class SalidasWindow:
             )
             motivo_win.destroy()
             self._mb_showinfo("Éxito", "Salida anulada correctamente")
+            self._refresh_stock_snapshot()
             sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
             self._load_history()
 
@@ -1084,6 +1111,7 @@ class SalidasWindow:
             "Codigo": self.codigo_var.get().strip(),
             "Lote": self.lote_var.get().strip(),
             "Cantidad": self.cantidad_var.get().strip(),
+            "Unidad": self.unidad_var.get().strip(),
         }
         missing = [name for name, value in required.items() if not value]
         if missing:
@@ -1218,6 +1246,7 @@ class SalidasWindow:
                         valor_nuevo=nue,
                     )
                 self._mb_showinfo("Éxito", "Salida actualizada correctamente")
+                self._refresh_stock_snapshot()
                 sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
                 self._reset_form()
                 self._load_history()
@@ -1249,6 +1278,7 @@ class SalidasWindow:
             )
 
             self._mb_showinfo("Exito", "Salida registrada correctamente")
+            self._refresh_stock_snapshot()
             sync_inventario(ENTRADAS_FILE, SALIDAS_FILE, INVENTARIO_FILE)
             self._reset_form()
             self._load_history()

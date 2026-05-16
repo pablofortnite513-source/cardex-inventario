@@ -21,6 +21,7 @@ from config.config import (
 from ui.bitacora import registrar_bitacora
 from ui.input_behaviors import bind_code_combo_autofill, bind_uppercase
 from ui.styles import apply_styles_to_window, make_required_label, apply_focus_bindings, build_header
+from ui.window_utils import maximize_window
 from utils.data_handler import (
     DataHandler,
     Lookups,
@@ -43,6 +44,7 @@ class EntryFormWindow:
         self.window.title("Sistema de Gestion - Entradas")
         self.window.geometry("1280x860")
         self.window.configure(bg=COLORS["secondary"])
+        maximize_window(self.window)
         self.usuario = usuario
         self.rol = rol.lower()
         self.editing_id: int | None = None  # ID del registro en edición
@@ -220,7 +222,7 @@ class EntryFormWindow:
         costos = tk.LabelFrame(top, text="Costos y Facturación", bg="white", fg="#1F4F8A", font=("Segoe UI", 11, "bold"))
         costos.grid(row=0, column=1, sticky="nsew")
 
-        self.costo_unitario_entry = self._add_entry(costos, "Costo Unitario", self.costo_unitario_var, 0, 0)
+        self.costo_unitario_entry = self._add_entry(costos, "Costo Unitario", self.costo_unitario_var, 0, 0, required=True)
         self._add_entry(costos, "Costo Total", self.costo_total_var, 0, 1, readonly=True)
         self._add_entry(costos, "Factura", self.factura_var, 1, 0, col_span=2)
 
@@ -234,7 +236,7 @@ class EntryFormWindow:
         detalles.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
         self._add_entry(detalles, "Cantidad", self.cantidad_var, 0, 0, required=True)
-        self._add_entry(detalles, "Presentacion", self.presentacion_var, 0, 1)
+        self._add_entry(detalles, "Presentacion", self.presentacion_var, 0, 1, required=True)
         # Total es calculado (readonly) = cantidad × presentación
         self._add_entry(detalles, "Total (contenido neto)", self.total_var, 0, 2, required=True, readonly=True)
         self.unidad_combo = self._add_combo(
@@ -242,11 +244,12 @@ class EntryFormWindow:
             [x.get("nombre", "") for x in self.catalogs["unidades"] if x.get("nombre")], 0, 3,
             required=True,
         )
-        self._add_entry(detalles, "Concentracion", self.concentracion_var, 0, 4)
-        self._add_entry(detalles, "Densidad (g/mL)", self.densidad_var, 0, 5)
+        self._add_entry(detalles, "Concentracion", self.concentracion_var, 0, 4, required=True)
+        self._add_entry(detalles, "Densidad (g/mL)", self.densidad_var, 0, 5, required=True)
         self.proveedor_combo = self._add_combo(
             detalles, "Proveedor", self.proveedor_var,
             [x.get("nombre", "") for x in self.catalogs["proveedores"] if x.get("nombre")], 1, 0, col_span=5,
+            required=True,
         )
 
         docs = tk.LabelFrame(middle, text="Documentacion Tecnica", bg="white", fg="#1F4F8A", font=("Segoe UI", 11, "bold"))
@@ -259,8 +262,18 @@ class EntryFormWindow:
 
         docs_grid = tk.Frame(docs, bg="white")
         docs_grid.pack(fill="x", padx=10, pady=(0, 10))
-        self.fecha_venc_de = self._add_date_entry(docs_grid, "Fecha Vencimiento", self.fecha_venc_var, 0, 0, allow_past=False)
-        self.fecha_doc_de = self._add_date_entry(docs_grid, "Fecha Documento", self.fecha_doc_var, 0, 1, allow_past=True)
+        self.fecha_venc_de = self._add_date_entry(docs_grid, "Fecha Vencimiento", self.fecha_venc_var, 0, 0, required=True, allow_past=False)
+        self.fecha_doc_de = self._add_date_entry(
+            docs_grid,
+            "Fecha Documento",
+            self.fecha_doc_var,
+            0,
+            1,
+            required=True,
+            allow_past=True,
+            min_date=self._date_years_ago(5),
+            max_date=date.today(),
+        )
         # Vigencia Documento = fecha (readonly, calculada como Fecha Doc + 5 años)
         self._add_entry(docs_grid, "Vig. Documento", self.vigencia_doc_var, 0, 2, readonly=True)
 
@@ -274,10 +287,12 @@ class EntryFormWindow:
         self.ubicacion_combo = self._add_combo(
             row_storage, "Ubicacion", self.ubicacion_var,
             [x.get("nombre", "") for x in self.catalogs["ubicaciones"] if x.get("nombre")], 0, 0,
+            required=True,
         )
         self.condicion_combo = self._add_combo(
             row_storage, "Condicion de Almacenamiento", self.condicion_var,
             [x.get("nombre", "") for x in self.catalogs["condiciones"] if x.get("nombre")], 0, 1,
+            required=True,
         )
         if self.condicion_combo is not None:
             self._bind_combo_tooltip_fallback(self.condicion_combo)
@@ -440,6 +455,8 @@ class EntryFormWindow:
         self, parent: tk.Widget, label: str, variable: tk.StringVar,
         row: int, col: int, col_span: int = 1, required: bool = False,
         allow_past: bool = True,
+        min_date: date | None = None,
+        max_date: date | None = None,
     ) -> DateEntry:
         frame = tk.Frame(parent, bg="white")
         frame.grid(row=row, column=col, columnspan=col_span, padx=8, pady=8, sticky="ew")
@@ -457,17 +474,41 @@ class EntryFormWindow:
         "headersforeground": "white",
         }
 
-        # 👇 SOLO bloquear si no permite pasado
-        if not allow_past:
+        if min_date is not None:
+            kwargs["mindate"] = min_date
+        elif not allow_past:
             kwargs["mindate"] = date.today()
+        if max_date is not None:
+            kwargs["maxdate"] = max_date
 
         de = DateEntry(frame, **kwargs)
+        de.bind("<Button-1>", lambda _e, w=de, v=variable: self._ensure_valid_dateentry_value(w, v), add="+")
 
         de.pack(fill="x", pady=(4, 0))
         if not variable.get().strip():
             de.delete(0, tk.END)
         parent.columnconfigure(col, weight=1)
         return de
+
+    def _ensure_valid_dateentry_value(self, widget: DateEntry, variable: tk.StringVar) -> None:
+        """Evita errores del popup de tkcalendar cuando el texto está vacío o inválido."""
+        raw = variable.get().strip()
+        parsed = self._parse_date(raw)
+        if parsed is None:
+            safe_date = date.today()
+            variable.set(safe_date.strftime("%Y-%m-%d"))
+            try:
+                widget.set_date(safe_date)
+            except Exception:
+                pass
+
+    def _date_years_ago(self, years: int) -> date:
+        base = date.today()
+        try:
+            return base.replace(year=base.year - years)
+        except ValueError:
+            # Maneja 29-Feb en años no bisiestos
+            return base.replace(year=base.year - years, day=28)
 
     def _add_entry(
         self, parent: tk.Widget, label: str, variable: tk.StringVar,
@@ -482,8 +523,6 @@ class EntryFormWindow:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
         state = "readonly" if readonly else "normal"
         entry = tk.Entry(frame, textvariable=variable, state=state)
-        if required and not readonly:
-            entry.configure(highlightthickness=1, highlightcolor="#e53935", highlightbackground="#e53935")
         entry.pack(fill="x", pady=(4, 0))
         if not readonly:
             apply_focus_bindings(entry)
@@ -499,7 +538,6 @@ class EntryFormWindow:
         frame.grid(row=row, column=col, columnspan=col_span, padx=8, pady=8, sticky="ew")
         if required:
             make_required_label(frame, label).pack(anchor="w")
-            frame.configure(highlightthickness=1, highlightcolor="#e53935", highlightbackground="#e53935")
         else:
             tk.Label(frame, text=label, bg="white").pack(anchor="w")
         combo = ttk.Combobox(frame, textvariable=variable, values=options, state="normal")
@@ -815,6 +853,21 @@ class EntryFormWindow:
             # Handle Feb 29 edge case
             vigencia = doc_date.replace(year=doc_date.year + 5, day=28)
         self.vigencia_doc_var.set(vigencia.strftime("%Y-%m-%d"))
+        if vigencia < date.today():
+            self._mb_showerror(
+                "Documento Vencido",
+                f"La vigencia del documento es {vigencia.strftime('%Y-%m-%d')}.\n"
+                "El documento ya está VENCIDO y no podrá guardarse.",
+            )
+            min_doc_date = self._date_years_ago(5)
+            self.fecha_doc_var.set(min_doc_date.strftime("%Y-%m-%d"))
+            if self.fecha_doc_de is not None:
+                try:
+                    self.fecha_doc_de.set_date(min_doc_date)
+                except Exception:
+                    pass
+            self.vigencia_doc_var.set("")
+            
 
     def _enforce_numeric(self, var: tk.StringVar) -> None:
         """Solo permite dígitos, punto decimal y signo negativo. Convierte comas a puntos."""
@@ -1217,11 +1270,20 @@ class EntryFormWindow:
             "Tipo Entrada": self.tipo_entrada_var.get().strip(),
             "Fecha Entrada": self.fecha_entrada_var.get().strip(),
             "Codigo": self.codigo_var.get().strip(),
-            "Nombre del Producto": self.nombre_var.get().strip(),
+            "Lote": self.lote_var.get().strip(),
+            "presentacion": self.presentacion_var.get().strip(),
+            "fecha_vencimiento": self.fecha_venc_var.get().strip(),
+            #"Nombre del Producto": self.nombre_var.get().strip(),
             "Cantidad": self.cantidad_var.get().strip(),
             "Total": self.total_var.get().strip(),
             "Unidad": self.unidad_var.get().strip(),
             "Proveedor": self.proveedor_var.get().strip(),
+            "Fecha Documento": self.fecha_doc_var.get().strip(),
+            "Ubicacion": self.ubicacion_var.get().strip(),
+            "Condicion de Almacenamiento": self.condicion_var.get().strip(),
+            "Densidad": self.densidad_var.get().strip(),
+            "Concentracion": self.concentracion_var.get().strip(),
+            "Costo Unitario": self.costo_unitario_var.get().strip(),
         }
         missing = [k for k, v in required.items() if not v]
         if missing:

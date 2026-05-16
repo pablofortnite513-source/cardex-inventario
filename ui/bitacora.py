@@ -7,6 +7,7 @@ from openpyxl import Workbook
 
 from config.config import BITACORA_FILE, COLORS
 from ui.styles import build_header
+from ui.window_utils import maximize_window
 from utils.data_handler import DataHandler
 
 
@@ -23,6 +24,7 @@ class BitacoraWindow:
         self.window.title("Bitácora de Auditoría")
         self.window.geometry("1200x520")
         self.window.configure(bg=COLORS["secondary"])
+        maximize_window(self.window)
 
         self.search_var = tk.StringVar()
         self.operacion_var = tk.StringVar(value="Todos")

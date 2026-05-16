@@ -15,6 +15,7 @@ from config.config import (
     UNIDADES_FILE,
 )
 from ui.bitacora import registrar_bitacora
+#from ui.window_utils import maximize_window
 from utils.data_handler import DataHandler, Lookups, build_location_indexes, location_name
 
 
@@ -26,6 +27,7 @@ class MaestrasWindow:
         self.window.title("Maestras")
         self.window.geometry("760x420")
         self.window.configure(bg=COLORS["secondary"])
+        #maximize_window(self.window)
         self.auto_open = auto_open
         self._build_ui()
 
@@ -112,6 +114,7 @@ class SubstanceMasterWindow:
         self.window.title("Maestra de Sustancia")
         self.window.geometry("1180x620")
         self.window.configure(bg=COLORS["secondary"])
+        #maximize_window(self.window)
 
         self.control_var = tk.StringVar(value="No")
         self.estado_var = tk.StringVar(value="HABILITADA")
@@ -246,18 +249,6 @@ class SubstanceMasterWindow:
             padx=20,
             pady=8,
         ).pack(side="left")
-
-        tk.Button(
-            buttons,
-            text="Actualizar",
-            command=self.update_selected,
-            bg=COLORS["primary"],
-            fg=COLORS["text_light"],
-            relief="flat",
-            font=("Segoe UI", 11, "bold"),
-            padx=20,
-            pady=8,
-        ).pack(side="left", padx=(10, 0))
 
         tk.Button(
             buttons,
@@ -436,42 +427,76 @@ class SubstanceMasterWindow:
         data = DataHandler.load_json(SUSTANCIAS_FILE)
         sustancias = data.get("maestrasSustancias", [])
 
-        if any(item.get("codigo") == codigo for item in sustancias):
-            messagebox.showerror("Validacion", "Ya existe una sustancia con ese codigo")
-            self.window.config(cursor=original_cursor)
-            return
-
         ubicacion_tipo, id_ubicacion = self._selected_location_fields()
 
-        record = {
-            "codigo": codigo,
-            "nombre": nombre,
-            "codigo_cas": self.inputs["Codigo CAS"].get().strip(),
-            "controlada": self.control_var.get(),
-            "limite_minimo_control": self.inputs["Limite Minimo de Control"].get().strip(),
-            "codigo_sistema": self.inputs["Codigo Sistema"].get().strip(),
-            "cantidad_minima_stock": self.inputs["Cantidad Minima Stock"].get().strip(),
-            "ubicacion_tipo": ubicacion_tipo,
-            "id_ubicacion": id_ubicacion,
-            "id_unidad": None,
-            "habilitada": True,
-        }
+        # Buscar si ya existe un registro con ese código
+        existing_record = None
+        for rec in sustancias:
+            if rec.get("codigo") == codigo:
+                existing_record = rec
+                break
 
-        if not DataHandler.add_record(SUSTANCIAS_FILE, "maestrasSustancias", record):
-            messagebox.showerror("Error", "No se pudo guardar la sustancia")
-            self.window.config(cursor=original_cursor)
-            return
+        if existing_record:
+            # Actualizar registro existente
+            existing_record.update({
+                "nombre": nombre,
+                "codigo_cas": self.inputs["Codigo CAS"].get().strip(),
+                "controlada": self.control_var.get(),
+                "limite_minimo_control": self.inputs["Limite Minimo de Control"].get().strip(),
+                "codigo_sistema": self.inputs["Codigo Sistema"].get().strip(),
+                "cantidad_minima_stock": self.inputs["Cantidad Minima Stock"].get().strip(),
+                "ubicacion_tipo": ubicacion_tipo,
+                "id_ubicacion": id_ubicacion,
+                "habilitada": bool(existing_record.get("habilitada", True)),
+            })
 
-        messagebox.showinfo("Exito", "Sustancia guardada correctamente")
-        registrar_bitacora(
-            usuario="Sistema",
-            tipo_operacion="Inserción",
-            hoja="Sustancias",
-            id_registro=codigo,
-            campo="estado",
-            valor_anterior="",
-            valor_nuevo="HABILITADA",
-        )
+            if not DataHandler.save_json(SUSTANCIAS_FILE, data):
+                messagebox.showerror("Error", "No se pudo actualizar la sustancia")
+                self.window.config(cursor=original_cursor)
+                return
+
+            messagebox.showinfo("Exito", "Sustancia actualizada correctamente")
+            registrar_bitacora(
+                usuario="Sistema",
+                tipo_operacion="Actualización",
+                hoja="Sustancias",
+                id_registro=codigo,
+                campo="estado",
+                valor_anterior="",
+                valor_nuevo="ACTUALIZADA",
+            )
+        else:
+            # Crear nuevo registro
+            record = {
+                "codigo": codigo,
+                "nombre": nombre,
+                "codigo_cas": self.inputs["Codigo CAS"].get().strip(),
+                "controlada": self.control_var.get(),
+                "limite_minimo_control": self.inputs["Limite Minimo de Control"].get().strip(),
+                "codigo_sistema": self.inputs["Codigo Sistema"].get().strip(),
+                "cantidad_minima_stock": self.inputs["Cantidad Minima Stock"].get().strip(),
+                "ubicacion_tipo": ubicacion_tipo,
+                "id_ubicacion": id_ubicacion,
+                "id_unidad": None,
+                "habilitada": True,
+            }
+
+            if not DataHandler.add_record(SUSTANCIAS_FILE, "maestrasSustancias", record):
+                messagebox.showerror("Error", "No se pudo guardar la sustancia")
+                self.window.config(cursor=original_cursor)
+                return
+
+            messagebox.showinfo("Exito", "Sustancia guardada correctamente")
+            registrar_bitacora(
+                usuario="Sistema",
+                tipo_operacion="Inserción",
+                hoja="Sustancias",
+                id_registro=codigo,
+                campo="estado",
+                valor_anterior="",
+                valor_nuevo="HABILITADA",
+            )
+
         self._clear_form()
         self.reload_items()
         self.window.config(cursor=original_cursor)
@@ -601,6 +626,7 @@ class MasterCatalogWindow:
         self.window.title(f"Maestra - {title}")
         self.window.geometry("500x420")
         self.window.configure(bg=COLORS["secondary"])
+        #maximize_window(self.window)
 
         self._build_ui(title)
         self.reload_items()
@@ -646,15 +672,6 @@ class MasterCatalogWindow:
             relief="flat",
             command=self.delete_selected,
         ).pack(side="left")
-
-        tk.Button(
-            action_row,
-            text="Actualizar",
-            bg=COLORS["border"],
-            fg=COLORS["text_dark"],
-            relief="flat",
-            command=self.reload_items,
-        ).pack(side="right")
 
     def reload_items(self) -> None:
         data = DataHandler.load_json(self.file_path)
@@ -719,6 +736,7 @@ class LocationMasterWindow:
         self.window.title("Maestra - Ubicaciones")
         self.window.geometry("700x480")
         self.window.configure(bg=COLORS["secondary"])
+        #maximize_window(self.window)
         self.tipo_var = tk.StringVar(value="ubicacion")
         self.almacen_var = tk.StringVar()
         self.ubicaciones_records: list[dict] = []
@@ -802,11 +820,6 @@ class LocationMasterWindow:
             action_row, text="Eliminar seleccionado", bg=COLORS["error"],
             fg=COLORS["text_light"], relief="flat", command=self._delete_selected,
         ).pack(side="left")
-
-        tk.Button(
-            action_row, text="Actualizar", bg=COLORS["border"],
-            fg=COLORS["text_dark"], relief="flat", command=self._reload_all,
-        ).pack(side="right")
 
     def _reload_all(self) -> None:
         self.ubicaciones_records = DataHandler.load_json(UBICACIONES_FILE).get("maestrasUbicaciones", [])

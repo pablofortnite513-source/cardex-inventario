@@ -1,8 +1,9 @@
 import tkinter as tk
-from datetime import date
+from datetime import date, datetime
 from tkinter import filedialog, messagebox, ttk
 
 from config.config import (
+    BITACORA_FILE,
     COLORS,
     ENTRADAS_FILE,
     PROVEEDORES_FILE,
@@ -10,11 +11,13 @@ from config.config import (
     SALIDAS_FILE,
     SUSTANCIAS_FILE,
     TIPOS_ENTRADA_FILE,
+    TIPOS_SALIDA_FILE,
     UBICACIONES_FILE,
     UBICACIONES_USO_FILE,
     UNIDADES_FILE,
 )
 from ui.styles import build_header
+from ui.window_utils import maximize_window
 from utils.data_handler import (
     DataHandler,
     Lookups,
@@ -41,6 +44,7 @@ class StockAnalistaWindow:
         self.window.title("Stock Analista")
         self.window.geometry("1440x620")
         self.window.configure(bg=COLORS["secondary"])
+        maximize_window(self.window)
 
         self.search_var = tk.StringVar()
         self.tree: ttk.Treeview | None = None
@@ -91,7 +95,7 @@ class StockAnalistaWindow:
 
         columns = (
             "codigo", "cas", "nombre", "lote", "unidad", "entrada", "presentacion",
-            "stock", "ubicacion", "fecha_vencimiento", "proveedor", "lote_uso",
+            "stock", "cantidad_botellas", "ubicacion", "fecha_vencimiento", "proveedor", "lote_uso",
             "tipo_entrada", "concentracion", "densidad",
         )
         self._tree_columns = columns
@@ -118,6 +122,7 @@ class StockAnalistaWindow:
             "entrada": "Entrada",
             "presentacion": "Presentación",
             "stock": "Stock",
+            "cantidad_botellas": "Cantidad",
             "ubicacion": "Ubicación",
             "fecha_vencimiento": "F. Vencimiento",
             "proveedor": "Proveedor",
@@ -135,6 +140,7 @@ class StockAnalistaWindow:
             "entrada": 90,
             "presentacion": 100,
             "stock": 90,
+            "cantidad_botellas": 190,
             "ubicacion": 130,
             "fecha_vencimiento": 110,
             "proveedor": 160,
@@ -200,6 +206,17 @@ class StockAnalistaWindow:
 
         tk.Button(
             actions,
+            text="Histórico Lote",
+            command=self._show_lote_history,
+            bg=COLORS["primary"],
+            fg=COLORS["text_light"],
+            relief="flat",
+            padx=20,
+            pady=7,
+        ).pack(side="left", padx=(8, 0))
+
+        tk.Button(
+            actions,
             text="Salir",
             command=self.window.destroy,
             bg=COLORS["border"],
@@ -220,6 +237,23 @@ class StockAnalistaWindow:
             ratio = self._tree_base_widths.get(col, 1) / total_base
             target = int(width * ratio)
             self.tree.column(col, width=max(60, target), stretch=True)
+
+    @staticmethod
+    def _cantidad_botellas_label(stock: float, presentacion: str) -> str:
+        if not presentacion or presentacion.strip() == "":
+            return ""
+        try:
+            pres = float(str(presentacion).replace(",", "."))
+        except ValueError:
+            return ""
+        if pres <= 0:
+            return ""
+        cantidad = stock / pres
+        enteras = int(cantidad)
+        fraccion = cantidad - enteras
+        if fraccion == 0:
+            return f"{enteras} unidades enteras"
+        return f"Hay {enteras} unidades enteras y 1 iniciada"
 
     def load_table(self) -> None:
         if self.tree is None:
@@ -247,7 +281,12 @@ class StockAnalistaWindow:
 
         self.tree.delete(*self.tree.get_children())
         for row in filtered_rows[start:end]:
-            self.tree.insert("", tk.END, values=row)
+            row_values = list(row)
+            stock_value = _safe_float(row_values[7]) if len(row_values) > 7 else 0.0
+            presentacion_value = str(row_values[6]) if len(row_values) > 6 else ""
+            cantidad_label = self._cantidad_botellas_label(stock_value, presentacion_value)
+            row_values.insert(8, cantidad_label)
+            self.tree.insert("", tk.END, values=row_values)
 
         if self.pag_label is not None:
             self.pag_label.config(text=f"Página {self.pagina_actual} de {self.total_paginas}")
@@ -305,6 +344,261 @@ class StockAnalistaWindow:
                 f"No se pudo generar el reporte:\n{e}",
                 parent=self.window,
             )
+
+    @staticmethod
+    def _parse_date(value: str) -> date | None:
+        raw = (value or "").strip()
+        if not raw:
+            return None
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(raw, fmt).date()
+            except ValueError:
+                continue
+        return None
+
+    @staticmethod
+    def _parse_datetime(value: str) -> datetime | None:
+        raw = (value or "").strip()
+        if not raw:
+            return None
+        for fmt in (
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%d",
+            "%d/%m/%Y",
+            "%d-%m-%Y",
+        ):
+            try:
+                return datetime.strptime(raw, fmt)
+            except ValueError:
+                continue
+        return None
+
+    def _show_lote_history(self) -> None:
+        if self.tree is None:
+            return
+
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning(
+                "Histórico de lote",
+                "Selecciona un lote en la tabla para ver su histórico de salidas.",
+                parent=self.window,
+            )
+            return
+
+        values = self.tree.item(selected[0], "values")
+        codigo = str(values[0]).strip() if len(values) > 0 else ""
+        nombre = str(values[2]).strip() if len(values) > 2 else ""
+        lote = str(values[3]).strip() if len(values) > 3 else ""
+        presentacion = str(values[6]).strip() if len(values) > 6 else ""
+
+        entradas = DataHandler.get_all(ENTRADAS_FILE, "entradas")
+        salidas = DataHandler.get_all(SALIDAS_FILE, "salidas")
+        bitacora = DataHandler.get_all(BITACORA_FILE, "bitacora")
+        unidades_cat = DataHandler.load_json(UNIDADES_FILE).get("maestrasUnidades", [])
+        tipos_salida_cat = DataHandler.load_json(TIPOS_SALIDA_FILE).get("maestrasTiposSalida", [])
+        sustancias_cat = DataHandler.load_json(SUSTANCIAS_FILE).get("maestrasSustancias", [])
+        ubicaciones_cat = DataHandler.load_json(UBICACIONES_FILE).get("maestrasUbicaciones", [])
+        ubicaciones_uso_cat = DataHandler.load_json(UBICACIONES_USO_FILE).get("maestrasUbicacionesUso", [])
+
+        lkp = Lookups(unidades=unidades_cat, tipos_salida=tipos_salida_cat)
+        sustancias_by_id, _ = build_substance_indexes(sustancias_cat)
+        locations_by_key, _ = build_location_indexes(ubicaciones_cat, ubicaciones_uso_cat)
+
+        total_entrada_lote = 0.0
+        for rec in entradas:
+            if rec.get("anulado", False):
+                continue
+            rec_codigo = substance_code(rec, sustancias_by_id)
+            rec_lote = str(rec.get("lote", "")).strip()
+            if rec_codigo == codigo and rec_lote == lote:
+                total_entrada_lote += _safe_float(rec.get("total", rec.get("cantidad", 0)))
+
+        bitacora_por_registro: dict[int, list[dict]] = {}
+        for b in bitacora:
+            try:
+                rec_id = int(str(b.get("id_registro", "")).strip())
+            except (TypeError, ValueError):
+                continue
+            bitacora_por_registro.setdefault(rec_id, []).append(b)
+
+        movimientos = []
+        for rec in salidas:
+            rec_codigo = substance_code(rec, sustancias_by_id)
+            rec_lote = str(rec.get("lote", "")).strip()
+            if rec_codigo != codigo or rec_lote != lote:
+                continue
+
+            rec_id = rec.get("id")
+            eventos = bitacora_por_registro.get(int(rec_id), []) if rec_id is not None else []
+            eventos_ordenados = sorted(
+                eventos,
+                key=lambda ev: self._parse_datetime(str(ev.get("fecha_hora", ""))) or datetime.min,
+            )
+            evento_creacion = eventos_ordenados[0] if eventos_ordenados else None
+            evento_ultimo = eventos_ordenados[-1] if eventos_ordenados else None
+
+            fecha_hora = None
+            usuario = ""
+            if evento_ultimo is not None:
+                fecha_hora = self._parse_datetime(str(evento_ultimo.get("fecha_hora", "")))
+                usuario = str(evento_ultimo.get("usuario", "")).strip()
+            if fecha_hora is None:
+                fecha_hora = self._parse_datetime(str(rec.get("fecha_salida", "")))
+
+            movimientos.append(
+                {
+                    "rec": rec,
+                    "fecha_hora": fecha_hora,
+                    "usuario": usuario,
+                    "evento_creacion": evento_creacion,
+                }
+            )
+
+        movimientos.sort(
+            key=lambda m: (
+                m["fecha_hora"] or datetime.min,
+                int(m["rec"].get("id", 0) or 0),
+            )
+        )
+
+        historico: list[tuple] = []
+        stock_restante = total_entrada_lote
+        for mov in movimientos:
+            rec = mov["rec"]
+            cantidad_salida = _safe_float(rec.get("cantidad", 0))
+            anulado = bool(rec.get("anulado", False))
+
+            if not anulado:
+                stock_restante = round(stock_restante - cantidad_salida, 6)
+
+            fecha_hora = mov["fecha_hora"]
+            fecha_hora_texto = fecha_hora.strftime("%Y-%m-%d %H:%M:%S") if fecha_hora else str(rec.get("fecha_salida", ""))
+            tipo = lkp.to_name("tipos_salida", rec.get("id_tipo_salida")) or str(rec.get("tipo_salida", ""))
+            unidad = lkp.to_name("unidades", rec.get("id_unidad")) or str(rec.get("unidad", ""))
+            observaciones = str(rec.get("observaciones", ""))
+            estado = "Anulada" if anulado else "Activa"
+            usuario = mov["usuario"] or "N/D"
+            ubicacion = location_name(
+                rec,
+                locations_by_key,
+                "ubicacion_origen_tipo",
+                "id_ubicacion_origen",
+                "ubicacion_origen",
+            )
+            botellas_restantes = self._cantidad_botellas_label(stock_restante, presentacion)
+
+            historico.append(
+                (
+                    fecha_hora_texto,
+                    usuario,
+                    tipo,
+                    round(cantidad_salida, 6),
+                    unidad,
+                    round(stock_restante, 6),
+                    botellas_restantes,
+                    estado,
+                    ubicacion,
+                    observaciones,
+                )
+            )
+
+        historico.sort(
+            key=lambda row: self._parse_datetime(str(row[0])) or datetime.min,
+            reverse=True,
+        )
+
+        win = tk.Toplevel(self.window)
+        win.title(f"Histórico de Salidas - {codigo} / Lote {lote}")
+        win.geometry("1280x460")
+        win.configure(bg="white")
+
+        tk.Label(
+            win,
+            text=f"Producto: {nombre}   |   Código: {codigo}   |   Lote: {lote}",
+            bg="white",
+            fg=COLORS["text_dark"],
+            font=("Segoe UI", 10, "bold"),
+            pady=8,
+        ).pack(fill="x", padx=12)
+
+        table_wrap = tk.Frame(win, bg="white")
+        table_wrap.pack(fill="both", expand=True, padx=12, pady=(0, 10))
+        table_wrap.rowconfigure(0, weight=1)
+        table_wrap.columnconfigure(0, weight=1)
+
+        cols = (
+            "fecha_hora",
+            "usuario",
+            "tipo",
+            "cantidad",
+            "unidad",
+            "stock_restante",
+            "botellas_restantes",
+            "estado",
+            "ubicacion",
+            "observaciones",
+        )
+        tree = ttk.Treeview(table_wrap, columns=cols, show="headings", height=10)
+        y_scroll = ttk.Scrollbar(table_wrap, orient="vertical", command=tree.yview)
+        x_scroll = ttk.Scrollbar(table_wrap, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=y_scroll.set, xscrollcommand=x_scroll.set)
+
+        tree.grid(row=0, column=0, sticky="nsew")
+        y_scroll.grid(row=0, column=1, sticky="ns")
+        x_scroll.grid(row=1, column=0, sticky="ew")
+
+        headers = {
+            "fecha_hora": "Fecha y Hora",
+            "usuario": "Usuario",
+            "tipo": "Tipo Salida",
+            "cantidad": "Cantidad Salida",
+            "unidad": "Unidad",
+            "stock_restante": "Stock Remanente",
+            "botellas_restantes": "Cant. Botellas Restantes",
+            "estado": "Estado",
+            "ubicacion": "Ubicación Origen",
+            "observaciones": "Observaciones",
+        }
+        widths = {
+            "fecha_hora": 145,
+            "usuario": 130,
+            "tipo": 130,
+            "cantidad": 100,
+            "unidad": 90,
+            "stock_restante": 120,
+            "botellas_restantes": 220,
+            "estado": 90,
+            "ubicacion": 150,
+            "observaciones": 260,
+        }
+        for col in cols:
+            tree.heading(col, text=headers[col])
+            tree.column(col, width=widths[col], anchor="w", minwidth=80, stretch=True)
+
+        if historico:
+            for row in historico:
+                tree.insert("", tk.END, values=row)
+        else:
+            tree.insert(
+                "",
+                tk.END,
+                values=("", "", "", "", "", "", "", "", "", "No hay salidas registradas para este lote"),
+            )
+
+        tk.Button(
+            win,
+            text="Cerrar",
+            command=win.destroy,
+            bg=COLORS["primary"],
+            fg=COLORS["text_light"],
+            relief="flat",
+            padx=20,
+            pady=6,
+        ).pack(pady=(0, 12))
 
 
 def _safe_float(value) -> float:
@@ -377,7 +671,12 @@ def _build_stock_analista_rows() -> list[list]:
         record = data["record"]
         stock = round(data["entrada"] - data["salida"], 6)
         tipo_entrada = lkp.to_name("tipos_entrada", record.get("id_tipo_entrada"), "")
-        lote_uso = "EN USO" if data["en_uso"] else ""
+        if data["salida"] > 0 and stock <= 0:
+            lote_uso = "TERMINADO"
+        elif data["en_uso"]:
+            lote_uso = "EN USO"
+        else:
+            lote_uso = ""
 
         cas = substance_cas(record, sustancias_by_id)
         if not cas:

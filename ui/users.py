@@ -5,6 +5,7 @@ from tkinter import messagebox, ttk
 import shutil
 
 from config.config import COLORS, FIRMAS_PATH, USERS_FILE
+#from ui.window_utils import maximize_window
 from utils.data_handler import DataHandler
 
 PERMISSION_MODULES = [
@@ -26,6 +27,7 @@ class CreateUserWindow:
         self.window.title("Gestión de Usuarios")
         self.window.geometry("1060x520")
         self.window.configure(bg=COLORS["secondary"])
+        #maximize_window(self.window)
 
         self.fields: dict[str, tk.Entry] = {}
         self.perm_vars: dict[str, tk.BooleanVar] = {}
@@ -201,8 +203,11 @@ class CreateUserWindow:
         top.transient(self.window)
         top.grab_set()
 
-        path_var = tk.StringVar(value=self.signature_path_var.get())
-        pass_var = tk.StringVar(value=self.signature_password_var.get())
+        # Valores originales para comparar cambios
+        original_path = self.signature_path_var.get()
+        original_pass = self.signature_password_var.get()
+        path_var = tk.StringVar(value=original_path)
+        pass_var = tk.StringVar(value=original_pass)
 
         frm = tk.Frame(top, bg="white", padx=14, pady=14)
         frm.pack(fill="both", expand=True)
@@ -225,7 +230,7 @@ class CreateUserWindow:
 
         btns = tk.Frame(frm, bg="white")
         btns.grid(row=4, column=0, columnspan=2, sticky="e")
-        tk.Button(
+        btn_guardar = tk.Button(
             btns,
             text="Guardar firma",
             command=lambda: self._save_signature_for_selected(path_var, pass_var, top),
@@ -234,7 +239,9 @@ class CreateUserWindow:
             relief="flat",
             padx=12,
             pady=5,
-        ).pack(side="left", padx=(0, 8))
+            state="disabled"
+        )
+        btn_guardar.pack(side="left", padx=(0, 8))
         tk.Button(
             btns,
             text="Cancelar",
@@ -247,6 +254,22 @@ class CreateUserWindow:
         ).pack(side="left")
 
         frm.columnconfigure(0, weight=1)
+
+        # Función para habilitar/deshabilitar el botón guardar
+        def check_enable_guardar(*_):
+            # Solo habilitar si hay cambios en la firma o contraseña
+            changed = (path_var.get().strip() != original_path.strip()) or (pass_var.get().strip() != original_pass.strip())
+            # Además, solo si hay archivo y contraseña
+            if changed and path_var.get().strip() and pass_var.get().strip():
+                btn_guardar.config(state="normal")
+            else:
+                btn_guardar.config(state="disabled")
+
+        # Asociar cambios
+        path_var.trace_add("write", check_enable_guardar)
+        pass_var.trace_add("write", check_enable_guardar)
+        # Llamar una vez para el estado inicial
+        check_enable_guardar()
 
     def _pick_signature_file(self, target_var: tk.StringVar) -> None:
         selected = filedialog.askopenfilename(
@@ -285,11 +308,31 @@ class CreateUserWindow:
         safe_user = str(target.get("usuario", "usuario")).strip().replace(" ", "_")
         dest = FIRMAS_PATH / f"firma_{safe_user}_{self.selected_user_id}{ext}"
 
+        # Si ya existe una firma previa para este usuario, intentar eliminarla si es diferente
+        prev_firma = str(target.get("firma_path", "")).strip()
+        if prev_firma:
+            prev_path = Path(prev_firma)
+            # Si la ruta previa es relativa, hacerla absoluta
+            if not prev_path.is_absolute():
+                prev_path = Path.cwd() / prev_path
+            try:
+                if prev_path.exists() and prev_path.resolve() != dest.resolve():
+                    prev_path.unlink()
+            except Exception:
+                pass  # No bloquear si no se puede borrar
+
         try:
+            # Permitir sobrescribir si ya existe
             shutil.copy2(src, dest)
         except Exception as exc:
             messagebox.showerror("Error", f"No se pudo copiar la firma: {exc}", parent=top)
             return
+
+        # Guardar siempre la ruta relativa al root del proyecto
+        try:
+            rel_path = str(dest.relative_to(Path.cwd()))
+        except Exception:
+            rel_path = str(dest)
 
         updates = {
             "nombre": target.get("nombre", ""),
@@ -297,14 +340,14 @@ class CreateUserWindow:
             "contrasena": target.get("contrasena", ""),
             "rol": target.get("rol", ""),
             "permisos": target.get("permisos", {}),
-            "firma_path": str(dest),
+            "firma_path": rel_path,
             "firma_password": password,
         }
         if not DataHandler.update_record(USERS_FILE, "usuarios", self.selected_user_id, updates):
             messagebox.showerror("Error", "No se pudo guardar la firma", parent=top)
             return
 
-        self.signature_path_var.set(str(dest))
+        self.signature_path_var.set(rel_path)
         self.signature_password_var.set(password)
         self._load_table()
         messagebox.showinfo("Éxito", "Firma guardada correctamente", parent=top)

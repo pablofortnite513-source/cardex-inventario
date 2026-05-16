@@ -16,6 +16,7 @@ from config.config import (
 )
 from ui.bitacora import registrar_bitacora
 from ui.styles import build_header
+from ui.window_utils import maximize_window
 from utils.data_handler import (
     DataHandler,
     Lookups,
@@ -36,6 +37,7 @@ class VigenciasWindow:
         self.window.title("Sistema de Gestion - Vigencias")
         self.window.geometry("1200x650")
         self.window.configure(bg=COLORS["secondary"])
+        maximize_window(self.window)
         self.usuario = usuario
         self.rol = rol.lower()
 
@@ -49,13 +51,15 @@ class VigenciasWindow:
         self.total_paginas = 1
         self.por_pagina_var = tk.StringVar(value="50")
         self.pag_label: tk.Label | None = None
-        self.sort_mode = "default"
+        self.sort_mode = "caducidad"
+        self._tree_scroll_container: tk.Frame | None = None
 
         self.detail_vars = {
             "codigo": tk.StringVar(),
             "nombre": tk.StringVar(),
             "lote": tk.StringVar(),
             "fecha_vencimiento": tk.StringVar(),
+            "vigencia_documento": tk.StringVar(),
             "dias_restantes": tk.StringVar(),
             "estado": tk.StringVar(),
             "cantidad": tk.StringVar(),
@@ -163,11 +167,24 @@ class VigenciasWindow:
             pady=5,
         ).pack(side="left")
 
-        columns = ("codigo", "nombre", "lote", "f_venc", "cantidad", "unidad", "proveedor", "dias", "estado")
+        columns = ("codigo", "nombre", "lote", "f_venc", "cantidad", "unidad", "proveedor", "vig_doc", "dias", "estado")
         self._tree_columns = columns
-        self.tree = ttk.Treeview(wrapper, columns=columns, show="headings", height=12, selectmode="extended")
-        self.tree.pack(expand=True, fill="both", pady=(0, 10))
+        self._tree_scroll_container = tk.Frame(wrapper, bg="white")
+        self._tree_scroll_container.pack(expand=True, fill="both", pady=(0, 10))
+
+        self.tree = ttk.Treeview(self._tree_scroll_container, columns=columns, show="headings", height=12, selectmode="extended")
+        tree_scroll_y = ttk.Scrollbar(self._tree_scroll_container, orient="vertical", command=self.tree.yview)
+        tree_scroll_x = ttk.Scrollbar(self._tree_scroll_container, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=tree_scroll_y.set, xscrollcommand=tree_scroll_x.set)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        tree_scroll_y.grid(row=0, column=1, sticky="ns")
+        tree_scroll_x.grid(row=1, column=0, sticky="ew")
+        self._tree_scroll_container.rowconfigure(0, weight=1)
+        self._tree_scroll_container.columnconfigure(0, weight=1)
+
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
+        self.tree.bind("<Enter>", lambda _e: self._canvas.bind_all("<MouseWheel>", self._on_mousewheel))
+        self.tree.bind("<Leave>", lambda _e: self._canvas.bind_all("<MouseWheel>", self._on_mousewheel))
         style = ttk.Style(self.window)
         style.configure("Treeview", background="white", foreground="black", rowheight=25, fieldbackground="white")
         style.map("Treeview", background=[("selected", COLORS["primary"])], foreground=[("selected", "white")])
@@ -180,6 +197,7 @@ class VigenciasWindow:
             "cantidad": "Cantidad",
             "unidad": "Unidad",
             "proveedor": "Proveedor",
+            "vig_doc": "Vig. Documento",
             "dias": "Dias Restantes",
             "estado": "Estado",
         }
@@ -191,6 +209,7 @@ class VigenciasWindow:
             "cantidad": 90,
             "unidad": 80,
             "proveedor": 180,
+            "vig_doc": 120,
             "dias": 120,
             "estado": 120,
         }
@@ -243,6 +262,7 @@ class VigenciasWindow:
             ("Nombre del Producto", "nombre"),
             ("Lote", "lote"),
             ("Fecha Vencimiento", "fecha_vencimiento"),
+            ("Vigencia Documento", "vigencia_documento"),
             ("Dias Restantes", "dias_restantes"),
             ("Estado", "estado"),
             ("Cantidad", "cantidad"),
@@ -337,6 +357,12 @@ class VigenciasWindow:
 
     def _on_mousewheel(self, event) -> None:
         try:
+            target = self.window.winfo_containing(event.x_root, event.y_root)
+            while target is not None:
+                if target == self.tree and self.tree is not None and self.tree.winfo_exists():
+                    self.tree.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                    return
+                target = target.master
             if self._canvas.winfo_exists():
                 self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         except tk.TclError:
@@ -414,8 +440,21 @@ class VigenciasWindow:
                 return parsed
         return None
 
+    def _extract_document_validity_date(self, record: dict) -> date | None:
+        candidate_keys = [
+            "vigencia_documento",
+            "vigencia_doc",
+            "fecha_vigencia_documento",
+        ]
+        for key in candidate_keys:
+            parsed = self._parse_date(str(record.get(key, "")))
+            if parsed:
+                return parsed
+        return None
+
     def _build_row(self, record: dict, stock: float) -> tuple:
         exp = self._extract_expiration_date(record)
+        vig_doc = self._extract_document_validity_date(record)
         days = (exp - date.today()).days if exp else None
         estado = self._status_for_days(days)
 
@@ -427,6 +466,7 @@ class VigenciasWindow:
             stock,
             self.lkp.to_name("unidades", record.get("id_unidad")) or record.get("unidad", ""),
             self.lkp.to_name("proveedores", record.get("id_proveedor")) or record.get("proveedor", record.get("fabricante", "")),
+            vig_doc.strftime("%Y-%m-%d") if vig_doc else "",
             days if days is not None else "",
             estado,
         )
@@ -481,7 +521,9 @@ class VigenciasWindow:
                 continue
             filtered_rows.append((row, record))
 
-        if self.sort_mode == "dias":
+        if self.sort_mode == "caducidad":
+            filtered_rows.sort(key=lambda pair: self._parse_date(str(pair[0][3])) or date.max)
+        elif self.sort_mode == "dias":
             def _dias_key(pair: tuple[tuple, dict]) -> int:
                 raw = str(pair[0][7]).strip()
                 if raw in ("", "None"):
@@ -493,7 +535,7 @@ class VigenciasWindow:
 
             filtered_rows.sort(key=_dias_key)
         elif self.sort_mode == "fecha":
-            filtered_rows.sort(key=lambda pair: self._parse_date(str(pair[0][3])) or date.max)
+            filtered_rows.sort(key=lambda pair: self._parse_date(str(pair[0][7])) or date.max)
 
         try:
             por_pagina = max(1, int(self.por_pagina_var.get().strip()))
@@ -552,11 +594,12 @@ class VigenciasWindow:
         self.detail_vars["cantidad"].set(values[4] if len(values) > 4 else "")
         self.detail_vars["unidad"].set(values[5] if len(values) > 5 else "")
         self.detail_vars["fabricante"].set(values[6] if len(values) > 6 else "")
-        self.detail_vars["dias_restantes"].set(values[7] if len(values) > 7 else "")
-        self.detail_vars["estado"].set(values[8] if len(values) > 8 else "")
+        self.detail_vars["vigencia_documento"].set(values[7] if len(values) > 7 else "")
+        self.detail_vars["dias_restantes"].set(values[8] if len(values) > 8 else "")
+        self.detail_vars["estado"].set(values[9] if len(values) > 9 else "")
 
         # Actualizar color del label Estado
-        estado = values[8] if len(values) > 8 else ""
+        estado = values[9] if len(values) > 9 else ""
         if self.estado_label is not None:
             if estado == "VIGENTE":
                 self.estado_label.config(text=estado, bg="#4CAF50", fg="white")

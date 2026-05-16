@@ -4,6 +4,7 @@ from tkinter import ttk
 
 from config.config import COLORS, ENTRADAS_FILE, PROVEEDORES_FILE, SALIDAS_FILE, SUSTANCIAS_FILE, UBICACIONES_FILE, UBICACIONES_USO_FILE, UNIDADES_FILE
 from ui.styles import build_header
+from ui.window_utils import maximize_window
 from utils.data_handler import DataHandler, Lookups, build_location_indexes, build_substance_indexes, location_name, substance_code, substance_name
 
 
@@ -15,6 +16,7 @@ class StockWindow:
         self.window.title("Stock")
         self.window.geometry("1440x560")
         self.window.configure(bg=COLORS["secondary"])
+        maximize_window(self.window)
 
         self.search_var = tk.StringVar()
         self.filter_ubicacion_var = tk.StringVar(value="Todos")

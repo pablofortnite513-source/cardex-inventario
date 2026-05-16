@@ -26,6 +26,7 @@ from ui.stock_analista import StockAnalistaWindow
 from ui.stock import StockWindow
 from ui.users import CreateUserWindow
 from ui.vigencias import VigenciasWindow
+from ui.window_utils import maximize_window
 from utils.data_handler import DataHandler
 
 
@@ -179,17 +180,8 @@ class MainMenuWindow:
         
 
     def _set_balanced_geometry(self) -> None:
-        """Ajusta la ventana a un tamano comodo segun la resolucion actual."""
-        self.root.update_idletasks()
-        screen_w = self.root.winfo_screenwidth()
-        screen_h = self.root.winfo_screenheight()
-
-        width = min(max(int(screen_w * 0.88), 1120), 1380)
-        height = min(max(int(screen_h * 0.84), 640), 860)
-
-        pos_x = max((screen_w - width) // 2, 0)
-        pos_y = max((screen_h - height) // 2, 0)
-        self.root.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+        """Mantiene la ventana principal siempre maximizada."""
+        maximize_window(self.root)
 
     def _render_main_image(self, parent: tk.Frame) -> None:
         image_path = IMAGES_PATH / "imagenppal.jpg"
@@ -469,7 +461,7 @@ class MainMenuWindow:
                 font=("Segoe UI", 9),
             ).pack(anchor="w")
         else:
-            visible_count = len(notifications) if self._notifications_expanded else min(3, len(notifications))
+            visible_count = len(notifications) if self._notifications_expanded else min(1, len(notifications))
             for notif in notifications[:visible_count]:
                 tk.Label(
                     self.notify_container,
@@ -532,6 +524,7 @@ class MainMenuWindow:
                     prefill=prefill,
                 )
                 self._track_window(ew)
+                ew.window.after(30, lambda: (ew.window.lift(), ew.window.focus_force()))
 
             w = CheckListWindow(self.root, usuario=self.user.get("nombre", ""), on_saved=_on_checklist_saved)
         else:
@@ -666,9 +659,9 @@ class MainMenuWindow:
         """Cierra la sesión y vuelve al login."""
         for child in self.root.winfo_children():
             child.destroy()
-        self.root.geometry("600x400")
         from ui.login import LoginWindow
         LoginWindow(self.root)
+        maximize_window(self.root)
 
     def not_implemented(self) -> None:
         top = tk.Toplevel(self.root)
