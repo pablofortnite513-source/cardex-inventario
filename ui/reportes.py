@@ -216,8 +216,8 @@ class ReportesWindow:
 
         self._mes_combo: ttk.Combobox | None = None
         self._anio_combo: ttk.Combobox | None = None
-        self._desde_entry: tk.Entry | None = None
-        self._hasta_entry: tk.Entry | None = None
+        self._desde_entry: ttk.Entry | None = None
+        self._hasta_entry: ttk.Entry | None = None
 
         self._build_ui()
 
@@ -273,11 +273,11 @@ class ReportesWindow:
         self._anio_combo.grid(row=0, column=3, sticky="w", padx=(0, 20))
 
         tk.Label(row2, text="Desde", bg="white").grid(row=0, column=4, padx=(0, 6), sticky="w")
-        self._desde_entry = tk.Entry(row2, textvariable=self.desde_var, width=12)
+        self._desde_entry = ttk.Entry(row2, textvariable=self.desde_var, width=12)
         self._desde_entry.grid(row=0, column=5, padx=(0, 10), sticky="w")
 
         tk.Label(row2, text="Hasta", bg="white").grid(row=0, column=6, padx=(0, 6), sticky="w")
-        self._hasta_entry = tk.Entry(row2, textvariable=self.hasta_var, width=12)
+        self._hasta_entry = ttk.Entry(row2, textvariable=self.hasta_var, width=12)
         self._hasta_entry.grid(row=0, column=7, sticky="w")
 
         tk.Label(

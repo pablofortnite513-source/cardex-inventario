@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from config.config import COLORS, PROJECT_NAME, USERS_FILE
+from database import get_db
 from ui.menu import MainMenuWindow
 from utils.data_handler import DataHandler
 
@@ -91,19 +92,12 @@ class LoginWindow:
         if not usuario or not contrasena:
             messagebox.showerror("Error", "Completa usuario y contrasena")
             return
-        
-       
-        data = DataHandler.load_json(USERS_FILE)
-        usuarios = data.get("usuarios", [])
 
-        user_found = next(
-            (
-                user
-                for user in usuarios
-                if user.get("usuario") == usuario and user.get("contrasena") == contrasena
-            ),
-            None,
-        )
+        db = get_db()
+        try:
+            user_found = db.get_usuario_login(usuario, contrasena)
+        finally:
+            db.close()
 
         if not user_found:
             messagebox.showerror("Acceso denegado", "Usuario o contrasena incorrectos")

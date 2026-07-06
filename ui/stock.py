@@ -253,15 +253,18 @@ class StockWindow:
 
     @staticmethod
     def _cantidad_label(stock: float, presentacion: str) -> str:
-        """Devuelve texto de unidades enteras e iniciada a partir de stock/presentacion."""
+        """Devuelve texto de unidades enteras/iniciadas o stock con unidad de presentacion."""
         if not presentacion or presentacion.strip() == "":
-            return ""
+            return f"{round(stock, 4):g}" if stock else "0"
         try:
             pres = float(str(presentacion).replace(",", "."))
         except ValueError:
-            return ""
+            # presentacion es texto (ej. "Frasco") – mostrar stock con la unidad
+            label = presentacion.strip()
+            stock_fmt = f"{round(stock, 4):g}"
+            return f"{stock_fmt} {label}"
         if pres <= 0:
-            return ""
+            return f"{round(stock, 4):g}" if stock else "0"
         cantidad = stock / pres
         enteras = int(cantidad)
         fraccion = cantidad - enteras

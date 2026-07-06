@@ -18,6 +18,7 @@ from config.config import (
 from config.config import COLORS
 from ui.bitacora import BitacoraWindow
 from ui.checklist import CheckListWindow
+from ui.hist_checklist import HistCheckListWindow
 from ui.entradas import EntryFormWindow
 from ui.maestras import LocationMasterWindow, MasterCatalogWindow, SubstanceMasterWindow
 from ui.reportes import ReportesWindow
@@ -156,6 +157,7 @@ class MainMenuWindow:
                 ("Stock Analista", self.open_stock_analista, "stock"),
                 ("Bitacora", self.open_bitacora, "auditoria"),
                 ("Reportes", self.open_reportes, "auditoria"),
+                ("Hist. CheckList", self.open_hist_checklist, "auditoria"),
             ],
         )
         self._create_panel_buttons(
@@ -249,6 +251,7 @@ class MainMenuWindow:
             "Usuarios": "imgUsuario.png",
             "Bitacora": "imgReporte.png",
             "Reportes": "imgReporte.png",
+            "Hist. CheckList": "imgReporte.png",
             "Sustancias": "imgSustancia.png",
             "T. Entrada": "imgTentrada.png",
             "T. Salida": "imgTentrada.png",
@@ -585,6 +588,14 @@ class MainMenuWindow:
         if not self._can_open_window():
             return
         w = ReportesWindow(self.root)
+        self._track_window(w)
+
+    def open_hist_checklist(self) -> None:
+        if not self._guard_access("auditoria", "Hist. CheckList"):
+            return
+        if not self._can_open_window():
+            return
+        w = HistCheckListWindow(self.root)
         self._track_window(w)
 
     def open_sustancias(self) -> None:
