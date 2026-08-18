@@ -8,7 +8,7 @@ from tkcalendar import DateEntry
 
 from config.config import CHECKLISTS_FILE, COLORS, PROVEEDORES_FILE, SUSTANCIAS_FILE, USERS_FILE
 from ui.input_behaviors import bind_code_combo_autofill, bind_uppercase
-from ui.window_utils import maximize_window
+from ui.styles import apply_styles_to_window, set_responsive_geometry
 from utils.data_handler import DataHandler, Lookups, build_substance_indexes, substance_from_code
 
 CHECK_ITEMS = [
@@ -33,9 +33,8 @@ class CheckListWindow:
     def __init__(self, parent: tk.Tk, usuario: str = "", on_saved=None):
         self.window = tk.Toplevel(parent)
         self.window.title("Lista de Chequeo - Recepción de Compra")
-        self.window.geometry("980x700")
+        set_responsive_geometry(self.window, 980, 700)
         self.window.configure(bg=COLORS["secondary"])
-        maximize_window(self.window)
         self.usuario = usuario
         self.on_saved = on_saved
 
@@ -52,7 +51,6 @@ class CheckListWindow:
 
         self.observaciones_text: tk.Text | None = None
         self.check_vars: dict[str, tk.StringVar] = {item: tk.StringVar(value="NONE") for item in CHECK_ITEMS}
-        self._check_summary_label: tk.Label | None = None
         self._combo_sources: dict[str, list[str]] = {}
         self._signature_images: list = []
         self._aprobo_preview: tk.Label | None = None
@@ -172,87 +170,12 @@ class CheckListWindow:
         )
         check_frame.pack(fill="x", pady=(0, 8))
 
-        bulk_actions = tk.Frame(check_frame, bg="#F7F3F8", bd=1, relief="solid")
-        bulk_actions.pack(fill="x", padx=10, pady=(8, 6))
-        tk.Label(
-            bulk_actions,
-            text="Acciones rápidas",
-            bg="#F7F3F8",
-            fg="#7A2E55",
-            font=("Segoe UI", 10, "bold"),
-        ).pack(side="left", padx=(10, 12), pady=8)
-        tk.Button(
-            bulk_actions,
-            text="Todo Sí",
-            command=lambda: self._set_all_checks("SI"),
-            bg="#2E7D32",
-            fg="white",
-            relief="flat",
-            padx=12,
-            pady=4,
-        ).pack(side="left", padx=(0, 6))
-        tk.Button(
-            bulk_actions,
-            text="Todo No",
-            command=lambda: self._set_all_checks("NO"),
-            bg="#C62828",
-            fg="white",
-            relief="flat",
-            padx=12,
-            pady=4,
-        ).pack(side="left", padx=(0, 6))
-        tk.Button(
-            bulk_actions,
-            text="Limpiar selección",
-            command=lambda: self._set_all_checks("NONE"),
-            bg="#E0E0E0",
-            fg="#333333",
-            relief="flat",
-            padx=12,
-            pady=4,
-        ).pack(side="left")
-
-        self._check_summary_label = tk.Label(
-            bulk_actions,
-            text="0 de 12 respondidos",
-            bg="#F7F3F8",
-            fg="#555555",
-            font=("Segoe UI", 9, "bold"),
-        )
-        self._check_summary_label.pack(side="right", padx=10)
-
-        tk.Label(
-            check_frame,
-            text="Usa las acciones rápidas para marcar todo de una vez o responde cada punto manualmente.",
-            bg="white",
-            fg="#666666",
-            font=("Segoe UI", 9),
-        ).pack(anchor="w", padx=12, pady=(0, 4))
-
         for i, item in enumerate(CHECK_ITEMS):
             rowf = tk.Frame(check_frame, bg="white")
             rowf.pack(fill="x", padx=10, pady=2)
             tk.Label(rowf, text=item, bg="white", anchor="w").pack(side="left", fill="x", expand=True)
-            tk.Radiobutton(
-                rowf,
-                text="Sí",
-                value="SI",
-                variable=self.check_vars[item],
-                bg="white",
-                activebackground="white",
-                selectcolor="#DFF3E3",
-                command=self._update_check_summary,
-            ).pack(side="left", padx=(6, 10))
-            tk.Radiobutton(
-                rowf,
-                text="No",
-                value="NO",
-                variable=self.check_vars[item],
-                bg="white",
-                activebackground="white",
-                selectcolor="#F9D6D5",
-                command=self._update_check_summary,
-            ).pack(side="left")
+            tk.Radiobutton(rowf, text="Sí", value="SI", variable=self.check_vars[item], bg="white").pack(side="left", padx=(6, 10))
+            tk.Radiobutton(rowf, text="No", value="NO", variable=self.check_vars[item], bg="white").pack(side="left")
 
         obs_frame = tk.Frame(wrapper, bg="white")
         obs_frame.pack(fill="x", pady=(0, 8))
@@ -260,7 +183,6 @@ class CheckListWindow:
         self.observaciones_text = tk.Text(obs_frame, height=4, font=("Segoe UI", 10))
         self.observaciones_text.pack(fill="x", pady=(4, 0))
         bind_uppercase(self.observaciones_text)
-        self._update_check_summary()
 
         rv = tk.LabelFrame(wrapper, text="Firmas", bg="white", fg="#1F4F8A", font=("Segoe UI", 10, "bold"))
         rv.pack(fill="x", pady=(0, 8))
@@ -299,6 +221,8 @@ class CheckListWindow:
         tk.Button(btns, text="Guardar", command=self.save, bg=COLORS["primary"], fg=COLORS["text_light"], relief="flat", padx=20, pady=6).pack(side="left", padx=(0, 8))
         tk.Button(btns, text="Limpiar", command=self.clear, bg=COLORS["border"], fg=COLORS["text_dark"], relief="flat", padx=20, pady=6).pack(side="left")
         tk.Button(btns, text="Salir", command=self.window.destroy, bg=COLORS["error"], fg=COLORS["text_light"], relief="flat", padx=20, pady=6).pack(side="right")
+
+        apply_styles_to_window(self.window)
 
     def _add_date(self, parent: tk.Widget, label: str, var: tk.StringVar, col: int) -> None:
         frame = tk.Frame(parent, bg="white")
@@ -355,19 +279,6 @@ class CheckListWindow:
             var.set("NONE")
         if self.observaciones_text is not None:
             self.observaciones_text.delete("1.0", tk.END)
-        self._update_check_summary()
-
-    def _set_all_checks(self, value: str) -> None:
-        for var in self.check_vars.values():
-            var.set(value)
-        self._update_check_summary()
-
-    def _update_check_summary(self) -> None:
-        if self._check_summary_label is None:
-            return
-        answered = sum(1 for var in self.check_vars.values() if var.get() in ("SI", "NO"))
-        total = len(self.check_vars)
-        self._check_summary_label.config(text=f"{answered} de {total} respondidos")
 
     def save(self) -> None:
         original_cursor = self.window.cget("cursor")
@@ -376,7 +287,6 @@ class CheckListWindow:
         required = {
             "Fecha Recepción": self.fecha_recepcion_var.get().strip(),
             "Proveedor": self.proveedor_var.get().strip(),
-            "No. Orden de Compra": self.orden_compra_var.get().strip(),
             "Código Producto": self.codigo_var.get().strip(),
             "Lote": self.lote_var.get().strip(),
             "Cantidad": self.cantidad_var.get().strip(),

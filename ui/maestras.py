@@ -15,7 +15,7 @@ from config.config import (
     UNIDADES_FILE,
 )
 from ui.bitacora import registrar_bitacora
-#from ui.window_utils import maximize_window
+from ui.styles import apply_styles_to_window, build_header, make_required_label, set_responsive_geometry
 from utils.data_handler import DataHandler, Lookups, build_location_indexes, location_name
 
 
@@ -25,9 +25,8 @@ class MaestrasWindow:
     def __init__(self, parent: tk.Tk, auto_open: str | None = None):
         self.window = tk.Toplevel(parent)
         self.window.title("Maestras")
-        self.window.geometry("760x420")
+        set_responsive_geometry(self.window, 760, 420)
         self.window.configure(bg=COLORS["secondary"])
-        #maximize_window(self.window)
         self.auto_open = auto_open
         self._build_ui()
 
@@ -38,13 +37,7 @@ class MaestrasWindow:
         wrapper = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=16, pady=16)
         wrapper.pack(expand=True, fill="both", padx=16, pady=16)
 
-        tk.Label(
-            wrapper,
-            text="Maestras",
-            bg="white",
-            fg=COLORS["text_dark"],
-            font=("Segoe UI", 16, "bold"),
-        ).pack(anchor="w", pady=(0, 12))
+        build_header(wrapper, "Sistema de Gestión  -  Maestras")
 
         grid = tk.Frame(wrapper, bg="white")
         grid.pack(expand=True, fill="both")
@@ -81,6 +74,8 @@ class MaestrasWindow:
         for col in range(3):
             grid.columnconfigure(col, weight=1)
 
+        apply_styles_to_window(self.window)
+
     def open_catalog(self, title: str, file_path: str, key: str, display_field: str) -> None:
         MasterCatalogWindow(self.window, title, file_path, key, display_field)
 
@@ -112,23 +107,26 @@ class SubstanceMasterWindow:
     def __init__(self, parent: tk.Toplevel):
         self.window = tk.Toplevel(parent)
         self.window.title("Maestra de Sustancia")
-        self.window.geometry("1180x620")
+        set_responsive_geometry(self.window, 1180, 660)
         self.window.configure(bg=COLORS["secondary"])
-        #maximize_window(self.window)
 
-        self.control_var = tk.StringVar(value="No")
+        self.control_var = tk.StringVar(value="No controlada")
         self.estado_var = tk.StringVar(value="HABILITADA")
         self.location_var = tk.StringVar()
         self.inputs: dict[str, tk.Entry] = {}
+        self.field_frames: dict[str, tk.Frame] = {}
         self.listbox: tk.Listbox | None = None
         self.selected_id: int | None = None
         self.sustancias: list[dict] = []
         self.stock_info_var = tk.StringVar(value="Stock actual: 0")
         self.ubicacion_combo: ttk.Combobox | None = None
+        self.save_btn: tk.Button | None = None
+        self.estado_btn: tk.Button | None = None
 
         self._load_location_catalogs()
 
         self._build_ui()
+        self._update_control_visibility()
         self.reload_items()
 
     def _load_location_catalogs(self) -> None:
@@ -147,15 +145,7 @@ class SubstanceMasterWindow:
         shell = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=14, pady=14)
         shell.pack(expand=True, fill="both", padx=12, pady=12)
 
-        header = tk.Label(
-            shell,
-            text="Maestra de Sustancia",
-            bg=COLORS["primary"],
-            fg=COLORS["text_light"],
-            font=("Segoe UI", 22, "bold"),
-            pady=8,
-        )
-        header.pack(fill="x", pady=(0, 16))
+        build_header(shell, "Sistema de Gestión  -  Maestra de Sustancia")
 
         content = tk.Frame(shell, bg="white")
         content.pack(fill="both", expand=True)
@@ -181,9 +171,9 @@ class SubstanceMasterWindow:
         grid = tk.Frame(right, bg="white")
         grid.pack(fill="both", expand=True, padx=8, pady=8)
 
-        self._add_field(grid, "Codigo", 0, 0)
-        self._add_field(grid, "Nombre del Producto", 0, 1)
-        self._add_field(grid, "Codigo CAS", 0, 2)
+        self._add_field(grid, "Codigo", 0, 0, required=True)
+        self._add_field(grid, "Nombre del Producto", 0, 1, required=True)
+        self._add_field(grid, "Codigo CAS", 0, 2, hint="Ej: 7732-18-5 (opcional)")
 
         control_box = tk.LabelFrame(
             grid,
@@ -197,22 +187,24 @@ class SubstanceMasterWindow:
             control_box,
             text="SI",
             variable=self.control_var,
-            value="Si",
+            value="Controlada",
             bg="white",
             font=("Segoe UI", 11, "bold"),
+            command=self._update_control_visibility,
         ).pack(side="left", padx=16, pady=8)
         tk.Radiobutton(
             control_box,
             text="NO",
             variable=self.control_var,
-            value="No",
+            value="No controlada",
+            command=self._update_control_visibility,
             bg="white",
             font=("Segoe UI", 11, "bold"),
         ).pack(side="left", padx=16, pady=8)
 
-        self._add_field(grid, "Limite Minimo de Control", 1, 1)
-        self._add_field(grid, "Codigo Sistema", 1, 2)
-        self._add_field(grid, "Cantidad Minima Stock", 2, 0)
+        self._add_field(grid, "Limite Minimo de Control", 1, 1, hint="Solo aplica si es controlada")
+        self._add_field(grid, "Codigo Sistema", 1, 2, hint="Código contable interno (opcional)")
+        self._add_field(grid, "Cantidad Minima Stock", 2, 0, hint="Para alertas de stock bajo")
 
         ubicacion_frame = tk.Frame(grid, bg="white")
         ubicacion_frame.grid(row=4, column=1, sticky="ew", padx=8, pady=(4, 0))
@@ -250,31 +242,21 @@ class SubstanceMasterWindow:
             pady=8,
         ).pack(side="left")
 
-        tk.Button(
-            buttons,
-            text="Habilitar",
-            command=self.habilitar_selected,
-            bg=COLORS["success"],
-            fg=COLORS["text_light"],
-            relief="flat",
-            font=("Segoe UI", 11, "bold"),
-            padx=20,
-            pady=8,
-        ).pack(side="left", padx=(10, 0))
-
-        tk.Button(
+        self.estado_btn = tk.Button(
             buttons,
             text="Inhabilitar",
-            command=self.inhabilitar_selected,
+            command=self._toggle_estado_selected,
             bg=COLORS["error"],
             fg=COLORS["text_light"],
             relief="flat",
             font=("Segoe UI", 11, "bold"),
             padx=20,
             pady=8,
-        ).pack(side="left", padx=(10, 0))
+            state="disabled",
+        )
+        self.estado_btn.pack(side="left", padx=(10, 0))
 
-        tk.Button(
+        self.save_btn = tk.Button(
             buttons,
             text="Guardar",
             command=self.save,
@@ -284,7 +266,8 @@ class SubstanceMasterWindow:
             font=("Segoe UI", 11, "bold"),
             padx=24,
             pady=8,
-        ).pack(side="right", padx=(10, 0))
+        )
+        self.save_btn.pack(side="right", padx=(10, 0))
 
         tk.Button(
             buttons,
@@ -298,21 +281,46 @@ class SubstanceMasterWindow:
             pady=8,
         ).pack(side="right")
 
-    def _add_field(self, parent: tk.Widget, label: str, row: int, col: int) -> None:
+        apply_styles_to_window(self.window)
+
+    def _add_field(
+        self, parent: tk.Widget, label: str, row: int, col: int,
+        required: bool = False, hint: str = "",
+    ) -> None:
         frame = tk.Frame(parent, bg="white")
         frame.grid(row=row * 2, column=col, sticky="ew", padx=8, pady=(4, 0))
+        self.field_frames[label] = frame
 
-        tk.Label(
-            frame,
-            text=label,
-            bg="white",
-            fg=COLORS["text_dark"],
-            font=("Segoe UI", 11),
-        ).pack(anchor="w")
+        if required:
+            make_required_label(frame, label, bg="white", font=("Segoe UI", 11)).pack(anchor="w")
+        else:
+            tk.Label(
+                frame,
+                text=label,
+                bg="white",
+                fg=COLORS["text_dark"],
+                font=("Segoe UI", 11),
+            ).pack(anchor="w")
 
         entry = tk.Entry(frame, font=("Segoe UI", 11))
-        entry.pack(fill="x", pady=(3, 4))
+        entry.pack(fill="x", pady=(3, 0 if hint else 4))
         self.inputs[label] = entry
+
+        if hint:
+            tk.Label(
+                frame, text=hint, bg="white", fg="#888888", font=("Segoe UI", 8),
+            ).pack(anchor="w", pady=(0, 4))
+
+    def _update_control_visibility(self) -> None:
+        """Solo muestra 'Limite Minimo de Control' cuando la sustancia es controlada."""
+        frame = self.field_frames.get("Limite Minimo de Control")
+        if frame is None:
+            return
+        if self.control_var.get() == "Controlada":
+            frame.grid()
+        else:
+            self.inputs["Limite Minimo de Control"].delete(0, tk.END)
+            frame.grid_remove()
 
     def _normalize_sustancia(self, record: dict) -> dict:
         if "habilitada" not in record:
@@ -377,20 +385,36 @@ class SubstanceMasterWindow:
         self.inputs["Cantidad Minima Stock"].insert(0, str(rec.get("cantidad_minima_stock", "")))
         self.location_var.set(location_name(rec, self.locations_by_key))
 
-        self.control_var.set(str(rec.get("controlada", "No")) or "No")
+        self.control_var.set(str(rec.get("controlada", "No controlada")) or "No controlada")
+        self._update_control_visibility()
         self.estado_var.set(self._estado_text(rec))
         self.stock_info_var.set(f"Stock actual: {self._stock_total_sustancia(rec.get('id'))}")
+
+        if self.save_btn is not None:
+            self.save_btn.config(text="Actualizar")
+        if self.estado_btn is not None:
+            habilitada = bool(rec.get("habilitada", True))
+            self.estado_btn.config(
+                state="normal",
+                text="Inhabilitar" if habilitada else "Habilitar",
+                bg=COLORS["error"] if habilitada else COLORS["success"],
+            )
 
     def _clear_form(self) -> None:
         self.selected_id = None
         for input_entry in self.inputs.values():
             input_entry.delete(0, tk.END)
-        self.control_var.set("No")
+        self.control_var.set("No controlada")
+        self._update_control_visibility()
         self.location_var.set("")
         self.estado_var.set("HABILITADA")
         self.stock_info_var.set("Stock actual: 0")
         if self.listbox is not None:
             self.listbox.selection_clear(0, tk.END)
+        if self.save_btn is not None:
+            self.save_btn.config(text="Guardar")
+        if self.estado_btn is not None:
+            self.estado_btn.config(state="disabled", text="Inhabilitar", bg=COLORS["error"])
 
     def _selected_location_fields(self) -> tuple[str, int | None]:
         selected = self.location_var.get().strip()
@@ -413,126 +437,31 @@ class SubstanceMasterWindow:
         )
 
     def save(self) -> None:
+        """Crea una sustancia nueva, o actualiza la seleccionada (botón dinámico Guardar/Actualizar)."""
         original_cursor = self.window.cget("cursor")
         self.window.config(cursor="watch")
         self.window.update()
+
         codigo = self.inputs["Codigo"].get().strip()
         nombre = self.inputs["Nombre del Producto"].get().strip()
 
         if not codigo or not nombre:
-            messagebox.showerror("Validacion", "Codigo y Nombre del Producto son obligatorios")
+            messagebox.showerror("Validación", "Código y Nombre del Producto son obligatorios")
             self.window.config(cursor=original_cursor)
             return
 
-        data = DataHandler.load_json(SUSTANCIAS_FILE)
-        sustancias = data.get("maestrasSustancias", [])
+        sustancias = DataHandler.get_all(SUSTANCIAS_FILE, "maestrasSustancias")
+        if any(
+            item.get("codigo") == codigo and item.get("id") != self.selected_id
+            for item in sustancias
+        ):
+            messagebox.showerror("Validación", "Ya existe una sustancia con ese código")
+            self.window.config(cursor=original_cursor)
+            return
 
         ubicacion_tipo, id_ubicacion = self._selected_location_fields()
 
-        # Buscar si ya existe un registro con ese código
-        existing_record = None
-        for rec in sustancias:
-            if rec.get("codigo") == codigo:
-                existing_record = rec
-                break
-
-        if existing_record:
-            # Actualizar registro existente
-            existing_record.update({
-                "nombre": nombre,
-                "codigo_cas": self.inputs["Codigo CAS"].get().strip(),
-                "controlada": self.control_var.get(),
-                "limite_minimo_control": self.inputs["Limite Minimo de Control"].get().strip(),
-                "codigo_sistema": self.inputs["Codigo Sistema"].get().strip(),
-                "cantidad_minima_stock": self.inputs["Cantidad Minima Stock"].get().strip(),
-                "ubicacion_tipo": ubicacion_tipo,
-                "id_ubicacion": id_ubicacion,
-                "habilitada": bool(existing_record.get("habilitada", True)),
-            })
-
-            if not DataHandler.save_json(SUSTANCIAS_FILE, data):
-                messagebox.showerror("Error", "No se pudo actualizar la sustancia")
-                self.window.config(cursor=original_cursor)
-                return
-
-            messagebox.showinfo("Exito", "Sustancia actualizada correctamente")
-            registrar_bitacora(
-                usuario="Sistema",
-                tipo_operacion="Actualización",
-                hoja="Sustancias",
-                id_registro=codigo,
-                campo="estado",
-                valor_anterior="",
-                valor_nuevo="ACTUALIZADA",
-            )
-        else:
-            # Crear nuevo registro
-            record = {
-                "codigo": codigo,
-                "nombre": nombre,
-                "codigo_cas": self.inputs["Codigo CAS"].get().strip(),
-                "controlada": self.control_var.get(),
-                "limite_minimo_control": self.inputs["Limite Minimo de Control"].get().strip(),
-                "codigo_sistema": self.inputs["Codigo Sistema"].get().strip(),
-                "cantidad_minima_stock": self.inputs["Cantidad Minima Stock"].get().strip(),
-                "ubicacion_tipo": ubicacion_tipo,
-                "id_ubicacion": id_ubicacion,
-                "id_unidad": None,
-                "habilitada": True,
-            }
-
-            if not DataHandler.add_record(SUSTANCIAS_FILE, "maestrasSustancias", record):
-                messagebox.showerror("Error", "No se pudo guardar la sustancia")
-                self.window.config(cursor=original_cursor)
-                return
-
-            messagebox.showinfo("Exito", "Sustancia guardada correctamente")
-            registrar_bitacora(
-                usuario="Sistema",
-                tipo_operacion="Inserción",
-                hoja="Sustancias",
-                id_registro=codigo,
-                campo="estado",
-                valor_anterior="",
-                valor_nuevo="HABILITADA",
-            )
-
-        self._clear_form()
-        self.reload_items()
-        self.window.config(cursor=original_cursor)
-
-    def update_selected(self) -> None:
-        if self.selected_id is None:
-            messagebox.showwarning("Aviso", "Selecciona una sustancia para actualizar")
-            return
-
-        codigo = self.inputs["Codigo"].get().strip()
-        nombre = self.inputs["Nombre del Producto"].get().strip()
-        if not codigo or not nombre:
-            messagebox.showerror("Validacion", "Codigo y Nombre del Producto son obligatorios")
-            return
-
-        data = DataHandler.load_json(SUSTANCIAS_FILE)
-        sustancias = data.get("maestrasSustancias", [])
-
-        target = None
-        for rec in sustancias:
-            if rec.get("id") == self.selected_id:
-                target = rec
-                break
-
-        if target is None:
-            messagebox.showerror("Error", "No se encontró la sustancia seleccionada")
-            return
-
-        for rec in sustancias:
-            if rec.get("id") != self.selected_id and str(rec.get("codigo", "")).strip() == codigo:
-                messagebox.showerror("Validacion", "Ya existe otra sustancia con ese codigo")
-                return
-
-        ubicacion_tipo, id_ubicacion = self._selected_location_fields()
-
-        target.update({
+        campos = {
             "codigo": codigo,
             "nombre": nombre,
             "codigo_cas": self.inputs["Codigo CAS"].get().strip(),
@@ -542,54 +471,56 @@ class SubstanceMasterWindow:
             "cantidad_minima_stock": self.inputs["Cantidad Minima Stock"].get().strip(),
             "ubicacion_tipo": ubicacion_tipo,
             "id_ubicacion": id_ubicacion,
-            "habilitada": bool(target.get("habilitada", True)),
-        })
+        }
 
-        if not DataHandler.save_json(SUSTANCIAS_FILE, data):
-            messagebox.showerror("Error", "No se pudo actualizar la sustancia")
-            return
+        if self.selected_id is None:
+            record = {**campos, "id_unidad": None, "habilitada": True}
+            if not DataHandler.add_record(SUSTANCIAS_FILE, "maestrasSustancias", record):
+                messagebox.showerror("Error", "No se pudo guardar la sustancia")
+                self.window.config(cursor=original_cursor)
+                return
 
-        registrar_bitacora(
-            usuario="Sistema",
-            tipo_operacion="Actualización",
-            hoja="Sustancias",
-            id_registro=codigo,
-            campo="datos_maestra",
-            valor_anterior="",
-            valor_nuevo="Actualizada",
-        )
-        messagebox.showinfo("Exito", "Sustancia actualizada correctamente")
+            registrar_bitacora(
+                usuario="Sistema", tipo_operacion="Inserción", hoja="Sustancias",
+                id_registro=codigo, campo="sustancia_creada",
+                valor_anterior="", valor_nuevo=f"{codigo} - {nombre}",
+            )
+            messagebox.showinfo("Éxito", "Sustancia guardada correctamente")
+            self._clear_form()
+        else:
+            old = next((s for s in sustancias if s.get("id") == self.selected_id), {})
+            if not DataHandler.update_record(SUSTANCIAS_FILE, "maestrasSustancias", self.selected_id, campos):
+                messagebox.showerror("Error", "No se pudo actualizar la sustancia")
+                self.window.config(cursor=original_cursor)
+                return
+
+            for campo, valor_nuevo in campos.items():
+                valor_anterior = old.get(campo, "")
+                if str(valor_anterior) != str(valor_nuevo):
+                    registrar_bitacora(
+                        usuario="Sistema", tipo_operacion="Edición", hoja="Sustancias",
+                        id_registro=codigo, campo=campo,
+                        valor_anterior=valor_anterior, valor_nuevo=valor_nuevo,
+                    )
+            messagebox.showinfo("Éxito", "Sustancia actualizada correctamente")
+
         self.reload_items()
+        self.window.config(cursor=original_cursor)
 
-    def habilitar_selected(self) -> None:
-        self._toggle_estado(True)
-
-    def inhabilitar_selected(self) -> None:
-        self._toggle_estado(False)
-
-    def _toggle_estado(self, habilitar: bool) -> None:
+    def _toggle_estado_selected(self) -> None:
+        """Botón único que habilita/inhabilita según el estado actual de la sustancia seleccionada."""
         if self.selected_id is None:
             messagebox.showwarning("Aviso", "Selecciona una sustancia")
             return
 
-        data = DataHandler.load_json(SUSTANCIAS_FILE)
-        sustancias = data.get("maestrasSustancias", [])
-
-        target = None
-        for rec in sustancias:
-            if rec.get("id") == self.selected_id:
-                target = rec
-                break
-
+        target = next((s for s in self.sustancias if s.get("id") == self.selected_id), None)
         if target is None:
             messagebox.showerror("Error", "No se encontró la sustancia seleccionada")
             return
 
         codigo = str(target.get("codigo", "")).strip()
         estado_actual = bool(target.get("habilitada", True))
-        if estado_actual == habilitar:
-            messagebox.showinfo("Aviso", f"La sustancia ya está {'habilitada' if habilitar else 'inhabilitada'}")
-            return
+        habilitar = not estado_actual
 
         if not habilitar:
             stock = self._stock_total_sustancia(target.get("id"))
@@ -602,16 +533,20 @@ class SubstanceMasterWindow:
 
         old_estado = "HABILITADA" if estado_actual else "INHABILITADA"
         new_estado = "HABILITADA" if habilitar else "INHABILITADA"
-        target["habilitada"] = habilitar
 
-        if not DataHandler.save_json(SUSTANCIAS_FILE, data):
+        if not DataHandler.update_record(SUSTANCIAS_FILE, "maestrasSustancias", self.selected_id, {"habilitada": habilitar}):
             messagebox.showerror("Error", "No se pudo actualizar el estado")
             return
 
         self._log_estado_change(codigo, old_estado, new_estado)
-        messagebox.showinfo("Exito", f"Sustancia {new_estado.lower()} correctamente")
+        messagebox.showinfo("Éxito", f"Sustancia {new_estado.lower()} correctamente")
         self.reload_items()
-        self._on_select()
+        self.estado_var.set(new_estado)
+        if self.estado_btn is not None:
+            self.estado_btn.config(
+                text="Inhabilitar" if new_estado == "HABILITADA" else "Habilitar",
+                bg=COLORS["error"] if new_estado == "HABILITADA" else COLORS["success"],
+            )
 
 
 class MasterCatalogWindow:
@@ -624,9 +559,8 @@ class MasterCatalogWindow:
 
         self.window = tk.Toplevel(parent)
         self.window.title(f"Maestra - {title}")
-        self.window.geometry("500x420")
+        set_responsive_geometry(self.window, 500, 420)
         self.window.configure(bg=COLORS["secondary"])
-        #maximize_window(self.window)
 
         self._build_ui(title)
         self.reload_items()
@@ -635,13 +569,7 @@ class MasterCatalogWindow:
         card = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=14, pady=14)
         card.pack(expand=True, fill="both", padx=14, pady=14)
 
-        tk.Label(
-            card,
-            text=f"Catalogo: {title}",
-            bg="white",
-            fg=COLORS["text_dark"],
-            font=("Segoe UI", 13, "bold"),
-        ).pack(anchor="w", pady=(0, 10))
+        build_header(card, f"Catálogo - {title}", logo_height=32)
 
         self.listbox = tk.Listbox(card, height=12)
         self.listbox.pack(fill="both", expand=True)
@@ -666,21 +594,33 @@ class MasterCatalogWindow:
 
         tk.Button(
             action_row,
-            text="Eliminar seleccionado",
+            text="Inhabilitar seleccionado",
             bg=COLORS["error"],
             fg=COLORS["text_light"],
             relief="flat",
             command=self.delete_selected,
         ).pack(side="left")
 
+        tk.Button(
+            action_row,
+            text="Actualizar",
+            bg=COLORS["border"],
+            fg=COLORS["text_dark"],
+            relief="flat",
+            command=self.reload_items,
+        ).pack(side="right")
+
+        apply_styles_to_window(self.window)
+
     def reload_items(self) -> None:
         data = DataHandler.load_json(self.file_path)
         records = data.get(self.key, [])
+        self._records = records
 
         self.listbox.delete(0, tk.END)
         for record in records:
             value = record.get(self.display_field, "")
-            if value:
+            if value and bool(record.get("habilitada", True)):
                 self.listbox.insert(tk.END, value)
 
     def add_item(self) -> None:
@@ -701,29 +641,51 @@ class MasterCatalogWindow:
             messagebox.showerror("Error", "No se pudo guardar el registro")
             return
 
+        registrar_bitacora(
+            usuario="Sistema",
+            tipo_operacion="Inserción",
+            hoja=self.key,
+            id_registro=str(payload.get("id", "")),
+            campo=self.display_field,
+            valor_anterior="",
+            valor_nuevo=name,
+        )
+
         self.name_entry.delete(0, tk.END)
         self.reload_items()
 
     def delete_selected(self) -> None:
         selected = self.listbox.curselection()
         if not selected:
-            messagebox.showwarning("Aviso", "Selecciona un item para eliminar")
+            messagebox.showwarning("Aviso", "Selecciona un item para inhabilitar")
             return
 
         selected_name = self.listbox.get(selected[0])
 
-        if not messagebox.askyesno("Confirmar", f"¿Desea eliminar '{selected_name}'?"):
+        if not messagebox.askyesno("Confirmar", f"¿Desea inhabilitar '{selected_name}'?"):
             return
 
-        data = DataHandler.load_json(self.file_path)
-        records = data.get(self.key, [])
-
-        filtered = [r for r in records if r.get(self.display_field, "") != selected_name]
-        data[self.key] = filtered
-
-        if not DataHandler.save_json(self.file_path, data):
-            messagebox.showerror("Error", "No se pudo eliminar el registro")
+        target = next(
+            (r for r in getattr(self, "_records", []) if r.get(self.display_field, "") == selected_name),
+            None,
+        )
+        if target is None or target.get("id") is None:
+            messagebox.showerror("Error", "No se encontró el registro seleccionado")
             return
+
+        if not DataHandler.update_record(self.file_path, self.key, target["id"], {"estado": "INHABILITADA", "habilitada": False}):
+            messagebox.showerror("Error", "No se pudo inhabilitar el registro")
+            return
+
+        registrar_bitacora(
+            usuario="Sistema",
+            tipo_operacion="Actualización",
+            hoja=self.key,
+            id_registro=str(target.get("id", "")),
+            campo="habilitada",
+            valor_anterior="HABILITADA",
+            valor_nuevo="INHABILITADA",
+        )
 
         self.reload_items()
 
@@ -734,9 +696,8 @@ class LocationMasterWindow:
     def __init__(self, parent):
         self.window = tk.Toplevel(parent)
         self.window.title("Maestra - Ubicaciones")
-        self.window.geometry("700x480")
+        set_responsive_geometry(self.window, 700, 480)
         self.window.configure(bg=COLORS["secondary"])
-        #maximize_window(self.window)
         self.tipo_var = tk.StringVar(value="ubicacion")
         self.almacen_var = tk.StringVar()
         self.ubicaciones_records: list[dict] = []
@@ -749,11 +710,7 @@ class LocationMasterWindow:
         card = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=14, pady=14)
         card.pack(expand=True, fill="both", padx=14, pady=14)
 
-        tk.Label(
-            card, text="Catálogo: Ubicaciones",
-            bg="white", fg=COLORS["text_dark"],
-            font=("Segoe UI", 13, "bold"),
-        ).pack(anchor="w", pady=(0, 10))
+        build_header(card, "Catálogo - Ubicaciones", logo_height=32)
 
         # ── Tipo de ubicación ──
         tipo_frame = tk.LabelFrame(card, text="Tipo de ubicación", bg="white",
@@ -817,13 +774,26 @@ class LocationMasterWindow:
         action_row.pack(fill="x")
 
         tk.Button(
-            action_row, text="Eliminar seleccionado", bg=COLORS["error"],
+            action_row, text="Inhabilitar seleccionado", bg=COLORS["error"],
             fg=COLORS["text_light"], relief="flat", command=self._delete_selected,
         ).pack(side="left")
 
+        tk.Button(
+            action_row, text="Actualizar", bg=COLORS["border"],
+            fg=COLORS["text_dark"], relief="flat", command=self._reload_all,
+        ).pack(side="right")
+
+        apply_styles_to_window(self.window)
+
     def _reload_all(self) -> None:
-        self.ubicaciones_records = DataHandler.load_json(UBICACIONES_FILE).get("maestrasUbicaciones", [])
-        self.uso_records = DataHandler.load_json(UBICACIONES_USO_FILE).get("maestrasUbicacionesUso", [])
+        self.ubicaciones_records = [
+            r for r in DataHandler.load_json(UBICACIONES_FILE).get("maestrasUbicaciones", [])
+            if bool(r.get("habilitada", True))
+        ]
+        self.uso_records = [
+            r for r in DataHandler.load_json(UBICACIONES_USO_FILE).get("maestrasUbicacionesUso", [])
+            if bool(r.get("habilitada", True))
+        ]
 
         self.list_ubicacion.delete(0, tk.END)
         for r in self.ubicaciones_records:
@@ -873,6 +843,16 @@ class LocationMasterWindow:
             messagebox.showerror("Error", "No se pudo guardar el registro")
             return
 
+        registrar_bitacora(
+            usuario="Sistema",
+            tipo_operacion="Inserción",
+            hoja=key,
+            id_registro=str(payload.get("id", "")),
+            campo="nombre",
+            valor_anterior="",
+            valor_nuevo=name,
+        )
+
         self.name_entry.delete(0, tk.END)
         self._reload_all()
 
@@ -897,15 +877,25 @@ class LocationMasterWindow:
             messagebox.showwarning("Aviso", "Selecciona un item de cualquiera de las listas")
             return
 
-        if not messagebox.askyesno("Confirmar", f"¿Desea eliminar '{selected_name}'?"):
+        if target_id is None:
+            messagebox.showerror("Error", "No se encontró el registro seleccionado")
             return
 
-        data = DataHandler.load_json(file_path)
-        records = data.get(key, [])
-        data[key] = [r for r in records if r.get("id") != target_id]
-
-        if not DataHandler.save_json(file_path, data):
-            messagebox.showerror("Error", "No se pudo eliminar el registro")
+        if not messagebox.askyesno("Confirmar", f"¿Desea inhabilitar '{selected_name}'?"):
             return
+
+        if not DataHandler.update_record(file_path, key, target_id, {"estado": "INHABILITADA", "habilitada": False}):
+            messagebox.showerror("Error", "No se pudo inhabilitar el registro")
+            return
+
+        registrar_bitacora(
+            usuario="Sistema",
+            tipo_operacion="Actualización",
+            hoja=key,
+            id_registro=str(target_id),
+            campo="habilitada",
+            valor_anterior="HABILITADA",
+            valor_nuevo="INHABILITADA",
+        )
 
         self._reload_all()

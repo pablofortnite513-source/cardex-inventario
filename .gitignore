@@ -11,5 +11,14 @@ _analyze_excel.py
 _analyze_total.py
 _kardex_temp.xlsm
 
+# Backups de base de datos
+data/*.backup-*.db
+
+# Salidas generadas (reportes/etiquetas exportados por la app)
+reportes/*.pdf
+reportes/*.xlsx
+reportes/*.png
+reportes/*.jpg
+
 # VS Code
 .vscode/

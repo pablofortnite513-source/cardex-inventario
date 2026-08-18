@@ -1,6 +1,6 @@
 import os
 import tkinter as tk
-from tkinter import Image, filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 from config.config import (
     COLORS,
@@ -13,7 +13,7 @@ from config.config import (
     UBICACIONES_USO_FILE,
     UNIDADES_FILE,
 )
-from ui.window_utils import maximize_window
+from ui.styles import apply_styles_to_window, set_responsive_geometry
 from utils.data_handler import (
     DataHandler,
     Lookups,
@@ -70,9 +70,8 @@ class EtiquetasWindow:
     def __init__(self, parent: tk.Tk):
         self.window = tk.Toplevel(parent)
         self.window.title("Imprimir Etiquetas")
-        self.window.geometry("1200x720")
+        set_responsive_geometry(self.window, 1200, 720)
         self.window.configure(bg=COLORS["secondary"])
-        maximize_window(self.window)
 
         self.codigo_var = tk.StringVar()
         self.nombre_var = tk.StringVar()
@@ -139,21 +138,6 @@ class EtiquetasWindow:
         selected = substance_from_code(self.sustancias_by_code, codigo)
         return str(selected.get("codigo_cas", "")) if selected else ""
 
-    def _format_bottle_quantity(self, record: dict) -> str:
-        total = record.get("total", record.get("cantidad", ""))
-        presentacion = record.get("presentacion", "")
-        try:
-            total_value = float(str(total).replace(",", "."))
-            presentacion_value = float(str(presentacion).replace(",", "."))
-        except (TypeError, ValueError):
-            return ""
-        if presentacion_value <= 0:
-            return ""
-        quantity = total_value / presentacion_value
-        if quantity.is_integer():
-            return f"{int(quantity)} botellas"
-        return f"{round(quantity, 2)} botellas"
-
     def _entries_for_code(self, codigo: str) -> list[dict]:
         selected = substance_from_code(self.sustancias_by_code, codigo)
         substance_key = selected.get("id") if selected else codigo
@@ -206,7 +190,7 @@ class EtiquetasWindow:
         # ── Tabla de entradas ──
         columns = (
             "lote", "fecha", "fv", "unidad", "concentracion",
-            "presentacion", "cantidad", "proveedor", "cas", "ubicacion", "almacenamiento",
+            "presentacion", "proveedor", "cas", "ubicacion", "almacenamiento",
         )
         self.tree = ttk.Treeview(wrapper, columns=columns, show="headings", height=6)
         self.tree.pack(fill="x", padx=4, pady=(0, 10))
@@ -214,13 +198,12 @@ class EtiquetasWindow:
         headings = {
             "lote": "Lote", "fecha": "F. Entrada", "fv": "F. Vencimiento",
             "unidad": "Unidad", "concentracion": "Concentración",
-            "presentacion": "Presentación", "cantidad": "Cantidad",
-            "proveedor": "Proveedor",
+            "presentacion": "Presentación", "proveedor": "Proveedor",
             "cas": "CAS", "ubicacion": "Ubicación", "almacenamiento": "Almacenamiento",
         }
         widths = {
             "lote": 100, "fecha": 90, "fv": 95, "unidad": 60,
-            "concentracion": 90, "presentacion": 85, "cantidad": 90, "proveedor": 100,
+            "concentracion": 90, "presentacion": 85, "proveedor": 100,
             "cas": 90, "ubicacion": 80, "almacenamiento": 200,
         }
         for col in columns:
@@ -285,6 +268,8 @@ class EtiquetasWindow:
         r3.columnconfigure(1, weight=3)
         r3.columnconfigure(2, weight=2)
 
+        apply_styles_to_window(self.window)
+
     def _add_detail(
         self, parent: tk.Frame, label: str, variable: tk.StringVar,
         col: int, weight: int = 1,
@@ -331,7 +316,6 @@ class EtiquetasWindow:
                 self.lkp.to_name("unidades", rec.get("id_unidad")) or rec.get("unidad", ""),
                 rec.get("concentracion", ""),
                 rec.get("presentacion", ""),
-                self._format_bottle_quantity(rec),
                 self.lkp.to_name("proveedores", rec.get("id_proveedor")) or rec.get("proveedor", rec.get("fabricante", "")),
                 cas,
                 location_name(rec, self.locations_by_key),
@@ -347,7 +331,7 @@ class EtiquetasWindow:
             return
 
         values = self.tree.item(selection[0], "values")
-        if not values or len(values) < 11:
+        if not values or len(values) < 10:
             return
 
         self.det_codigo_var.set(self.codigo_var.get())
@@ -358,10 +342,10 @@ class EtiquetasWindow:
         self.det_unidad_var.set(values[3])
         self.det_concentracion_var.set(values[4])
         self.det_presentacion_var.set(values[5])
-        self.det_proveedor_var.set(values[7])
-        self.det_cas_var.set(values[8])
-        self.det_ubicacion_var.set(values[9])
-        self.det_condicion_var.set(values[10])
+        self.det_proveedor_var.set(values[6])
+        self.det_cas_var.set(values[7])
+        self.det_ubicacion_var.set(values[8])
+        self.det_condicion_var.set(values[9])
 
     def _clear_details(self) -> None:
         for var in (
@@ -613,7 +597,7 @@ class EtiquetasWindow:
             ("FECHA VENCE", data.get("fv", ""), "UNIDAD DE MEDIDA", data.get("unidad", "")),
             ("CONCENTRACION", data.get("concentracion", ""), "FABRICANTE", data.get("proveedor", "")),
             ("FECHA INGRESO", data.get("fecha_entrada", ""), "CAS", data.get("cas", "")),
-            ("FECHA DE APERTURA", "", "UBICACION STOCK", ""),
+            ("FECHA DE APERTURA", "", "UBICACION STOCK:", ""),
         ]
 
         for left_lbl, left_val, right_lbl, right_val in rows:

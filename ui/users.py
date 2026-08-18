@@ -5,7 +5,8 @@ from tkinter import messagebox, ttk
 import shutil
 
 from config.config import COLORS, FIRMAS_PATH, USERS_FILE
-#from ui.window_utils import maximize_window
+from ui.bitacora import registrar_bitacora
+from ui.styles import apply_styles_to_window, build_header, set_responsive_geometry
 from utils.data_handler import DataHandler
 
 PERMISSION_MODULES = [
@@ -25,9 +26,8 @@ class CreateUserWindow:
     def __init__(self, parent: tk.Tk):
         self.window = tk.Toplevel(parent)
         self.window.title("Gestión de Usuarios")
-        self.window.geometry("1060x520")
+        set_responsive_geometry(self.window, 1060, 560)
         self.window.configure(bg=COLORS["secondary"])
-        #maximize_window(self.window)
 
         self.fields: dict[str, tk.Entry] = {}
         self.perm_vars: dict[str, tk.BooleanVar] = {}
@@ -43,14 +43,7 @@ class CreateUserWindow:
         shell = tk.Frame(self.window, bg="white", bd=1, relief="solid", padx=14, pady=14)
         shell.pack(expand=True, fill="both", padx=14, pady=14)
 
-        tk.Label(
-            shell,
-            text="Gestión de Usuarios",
-            bg=COLORS["primary"],
-            fg=COLORS["text_light"],
-            font=("Segoe UI", 18, "bold"),
-            pady=6,
-        ).pack(fill="x", pady=(0, 12))
+        build_header(shell, "Sistema de Gestión  -  Usuarios")
 
         form = tk.Frame(shell, bg="white")
         form.pack(fill="x", pady=(0, 10))
@@ -63,6 +56,13 @@ class CreateUserWindow:
         row2.pack(fill="x", pady=(0, 8))
         self._add_field(row2, "Usuario", "usuario")
         self._add_field(row2, "Contraseña", "contrasena", show="*")
+        tk.Label(
+            row2,
+            text="(vacía = no cambiar, al Modificar)",
+            bg="white",
+            fg="#888888",
+            font=("Segoe UI", 8),
+        ).pack(side="left", anchor="s", pady=(0, 4))
 
         role_frame = tk.Frame(row2, bg="white")
         role_frame.pack(side="left", fill="x", expand=False, padx=8)
@@ -114,6 +114,8 @@ class CreateUserWindow:
             else:
                 self.tree.column(c, width=100, anchor="w")
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
+
+        apply_styles_to_window(self.window)
 
     def _add_field(self, parent: tk.Widget, label_text: str, key: str, show: str | None = None, expand: bool = False) -> None:
         frame = tk.Frame(parent, bg="white")
@@ -171,7 +173,6 @@ class CreateUserWindow:
         self.fields["usuario"].delete(0, tk.END)
         self.fields["usuario"].insert(0, str(target.get("usuario", "")))
         self.fields["contrasena"].delete(0, tk.END)
-        self.fields["contrasena"].insert(0, str(target.get("contrasena", "")))
         self.role_var.set(str(target.get("rol", "Operario")) or "Operario")
         self.signature_path_var.set(str(target.get("firma_path", "")))
         self.signature_password_var.set(str(target.get("firma_password", "")))
@@ -203,11 +204,8 @@ class CreateUserWindow:
         top.transient(self.window)
         top.grab_set()
 
-        # Valores originales para comparar cambios
-        original_path = self.signature_path_var.get()
-        original_pass = self.signature_password_var.get()
-        path_var = tk.StringVar(value=original_path)
-        pass_var = tk.StringVar(value=original_pass)
+        path_var = tk.StringVar(value=self.signature_path_var.get())
+        pass_var = tk.StringVar(value=self.signature_password_var.get())
 
         frm = tk.Frame(top, bg="white", padx=14, pady=14)
         frm.pack(fill="both", expand=True)
@@ -230,7 +228,7 @@ class CreateUserWindow:
 
         btns = tk.Frame(frm, bg="white")
         btns.grid(row=4, column=0, columnspan=2, sticky="e")
-        btn_guardar = tk.Button(
+        tk.Button(
             btns,
             text="Guardar firma",
             command=lambda: self._save_signature_for_selected(path_var, pass_var, top),
@@ -239,9 +237,7 @@ class CreateUserWindow:
             relief="flat",
             padx=12,
             pady=5,
-            state="disabled"
-        )
-        btn_guardar.pack(side="left", padx=(0, 8))
+        ).pack(side="left", padx=(0, 8))
         tk.Button(
             btns,
             text="Cancelar",
@@ -254,22 +250,6 @@ class CreateUserWindow:
         ).pack(side="left")
 
         frm.columnconfigure(0, weight=1)
-
-        # Función para habilitar/deshabilitar el botón guardar
-        def check_enable_guardar(*_):
-            # Solo habilitar si hay cambios en la firma o contraseña
-            changed = (path_var.get().strip() != original_path.strip()) or (pass_var.get().strip() != original_pass.strip())
-            # Además, solo si hay archivo y contraseña
-            if changed and path_var.get().strip() and pass_var.get().strip():
-                btn_guardar.config(state="normal")
-            else:
-                btn_guardar.config(state="disabled")
-
-        # Asociar cambios
-        path_var.trace_add("write", check_enable_guardar)
-        pass_var.trace_add("write", check_enable_guardar)
-        # Llamar una vez para el estado inicial
-        check_enable_guardar()
 
     def _pick_signature_file(self, target_var: tk.StringVar) -> None:
         selected = filedialog.askopenfilename(
@@ -308,46 +288,32 @@ class CreateUserWindow:
         safe_user = str(target.get("usuario", "usuario")).strip().replace(" ", "_")
         dest = FIRMAS_PATH / f"firma_{safe_user}_{self.selected_user_id}{ext}"
 
-        # Si ya existe una firma previa para este usuario, intentar eliminarla si es diferente
-        prev_firma = str(target.get("firma_path", "")).strip()
-        if prev_firma:
-            prev_path = Path(prev_firma)
-            # Si la ruta previa es relativa, hacerla absoluta
-            if not prev_path.is_absolute():
-                prev_path = Path.cwd() / prev_path
-            try:
-                if prev_path.exists() and prev_path.resolve() != dest.resolve():
-                    prev_path.unlink()
-            except Exception:
-                pass  # No bloquear si no se puede borrar
-
         try:
-            # Permitir sobrescribir si ya existe
             shutil.copy2(src, dest)
         except Exception as exc:
             messagebox.showerror("Error", f"No se pudo copiar la firma: {exc}", parent=top)
             return
 
-        # Guardar siempre la ruta relativa al root del proyecto
-        try:
-            rel_path = str(dest.relative_to(Path.cwd()))
-        except Exception:
-            rel_path = str(dest)
-
         updates = {
             "nombre": target.get("nombre", ""),
             "usuario": target.get("usuario", ""),
-            "contrasena": target.get("contrasena", ""),
             "rol": target.get("rol", ""),
             "permisos": target.get("permisos", {}),
-            "firma_path": rel_path,
+            "firma_path": str(dest),
             "firma_password": password,
         }
         if not DataHandler.update_record(USERS_FILE, "usuarios", self.selected_user_id, updates):
             messagebox.showerror("Error", "No se pudo guardar la firma", parent=top)
             return
 
-        self.signature_path_var.set(rel_path)
+        registrar_bitacora(
+            usuario="Sistema", tipo_operacion="Actualización", hoja="Usuarios",
+            id_registro=str(self.selected_user_id), campo="firma",
+            valor_anterior=str(target.get("firma_path", "")) or "(sin firma)",
+            valor_nuevo=str(dest),
+        )
+
+        self.signature_path_var.set(str(dest))
         self.signature_password_var.set(password)
         self._load_table()
         messagebox.showinfo("Éxito", "Firma guardada correctamente", parent=top)
@@ -363,8 +329,8 @@ class CreateUserWindow:
         contrasena = self.fields["contrasena"].get().strip()
         rol = self.role_var.get().strip()
 
-        if not all([nombre, usuario, contrasena, rol]):
-            messagebox.showerror("Validación", "Nombre, Usuario, Contraseña y Rol son obligatorios")
+        if not all([nombre, usuario, rol]):
+            messagebox.showerror("Validación", "Nombre, Usuario y Rol son obligatorios")
             return
 
         usuarios = DataHandler.get_all(USERS_FILE, "usuarios")
@@ -382,16 +348,44 @@ class CreateUserWindow:
         updates = {
             "nombre": nombre,
             "usuario": usuario,
-            "contrasena": contrasena,
             "rol": rol,
             "permisos": permisos,
             "firma_path": self.signature_path_var.get().strip(),
             "firma_password": self.signature_password_var.get().strip(),
         }
+        if contrasena:
+            updates["contrasena"] = contrasena
+
+        old = next((u for u in usuarios if u.get("id") == self.selected_user_id), {})
 
         if not DataHandler.update_record(USERS_FILE, "usuarios", self.selected_user_id, updates):
             messagebox.showerror("Error", "No se pudo modificar el usuario")
             return
+
+        for campo, valor_anterior, valor_nuevo in (
+            ("nombre", old.get("nombre", ""), nombre),
+            ("usuario", old.get("usuario", ""), usuario),
+            ("rol", old.get("rol", ""), rol),
+        ):
+            if str(valor_anterior) != str(valor_nuevo):
+                registrar_bitacora(
+                    usuario="Sistema", tipo_operacion="Edición", hoja="Usuarios",
+                    id_registro=str(self.selected_user_id), campo=campo,
+                    valor_anterior=valor_anterior, valor_nuevo=valor_nuevo,
+                )
+        if old.get("permisos", {}) != permisos:
+            registrar_bitacora(
+                usuario="Sistema", tipo_operacion="Edición", hoja="Usuarios",
+                id_registro=str(self.selected_user_id), campo="permisos",
+                valor_anterior=", ".join(k for k, v in old.get("permisos", {}).items() if v) or "ninguno",
+                valor_nuevo=", ".join(k for k, v in permisos.items() if v) or "ninguno",
+            )
+        if contrasena:
+            registrar_bitacora(
+                usuario="Sistema", tipo_operacion="Edición", hoja="Usuarios",
+                id_registro=str(self.selected_user_id), campo="contrasena",
+                valor_anterior="(anterior)", valor_nuevo="(cambiada)",
+            )
 
         messagebox.showinfo("Éxito", "Usuario modificado correctamente")
         self._clear()
@@ -402,8 +396,7 @@ class CreateUserWindow:
             messagebox.showwarning("Aviso", "Selecciona un usuario para eliminar")
             return
 
-        usuarios_data = DataHandler.load_json(USERS_FILE)
-        usuarios = usuarios_data.get("usuarios", [])
+        usuarios = DataHandler.get_all(USERS_FILE, "usuarios")
         target = next((u for u in usuarios if u.get("id") == self.selected_user_id), None)
         if target is None:
             messagebox.showerror("Error", "Usuario no encontrado")
@@ -412,10 +405,16 @@ class CreateUserWindow:
         if not messagebox.askyesno("Confirmar", f"¿Desea eliminar el usuario '{target.get('usuario', '')}'?"):
             return
 
-        usuarios_data["usuarios"] = [u for u in usuarios if u.get("id") != self.selected_user_id]
-        if not DataHandler.save_json(USERS_FILE, usuarios_data):
+        if not DataHandler.delete_record(USERS_FILE, "usuarios", self.selected_user_id):
             messagebox.showerror("Error", "No se pudo eliminar el usuario")
             return
+
+        registrar_bitacora(
+            usuario="Sistema", tipo_operacion="Eliminación", hoja="Usuarios",
+            id_registro=str(self.selected_user_id), campo="usuario_eliminado",
+            valor_anterior=f"{target.get('usuario', '')} | Nombre: {target.get('nombre', '')} | Rol: {target.get('rol', '')}",
+            valor_nuevo="ELIMINADO",
+        )
 
         messagebox.showinfo("Éxito", "Usuario eliminado correctamente")
         self._clear()
@@ -465,6 +464,17 @@ class CreateUserWindow:
             messagebox.showerror("Error", "No se pudo guardar el usuario")
             self.window.config(cursor=original_cursor)
             return
+
+        permisos_activos = ", ".join(k for k, v in permisos.items() if v) or "ninguno"
+        registrar_bitacora(
+            usuario="Sistema",
+            tipo_operacion="Inserción",
+            hoja="Usuarios",
+            id_registro=str(record.get("id", "")),
+            campo="usuario_creado",
+            valor_anterior="",
+            valor_nuevo=f"{usuario} | Nombre: {nombre} | Rol: {rol} | Permisos: {permisos_activos}",
+        )
 
         messagebox.showinfo("Éxito", "Usuario creado correctamente")
         self._clear()

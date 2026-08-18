@@ -7,8 +7,19 @@ Prototipo funcional v1.0
 import tkinter as tk
 import tkinter.messagebox as mb
 from database import init_db_hybrid
+from config.config import IMAGES_PATH
 from ui.login import LoginWindow
-from ui.window_utils import maximize_window
+
+
+def _apply_app_icon(root: tk.Tk) -> None:
+    """Aplica el ícono del matraz a la ventana (y por lo tanto a la barra de tareas)."""
+    icon_path = IMAGES_PATH / "kardex_reactivos.ico"
+    if not icon_path.exists():
+        return
+    try:
+        root.iconbitmap(default=str(icon_path))
+    except Exception:
+        pass
 
 
 def _install_messagebox_parent_fallback(root: tk.Tk) -> None:
@@ -47,10 +58,11 @@ def main():
 
     root = tk.Tk()
     root.title("CECIF - Kardex Reactivos")
-    maximize_window(root)
+    root.geometry("600x400")
+    _apply_app_icon(root)
 
     _install_messagebox_parent_fallback(root)
-    LoginWindow(root)
+    app = LoginWindow(root)
     root.mainloop()
 
 

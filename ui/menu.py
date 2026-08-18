@@ -24,6 +24,7 @@ from ui.reportes import ReportesWindow
 from ui.salidas import SalidasWindow
 from ui.stock_analista import StockAnalistaWindow
 from ui.stock import StockWindow
+from ui.styles import apply_styles_to_window
 from ui.users import CreateUserWindow
 from ui.vigencias import VigenciasWindow
 from ui.window_utils import maximize_window
@@ -177,7 +178,8 @@ class MainMenuWindow:
         body.columnconfigure(1, weight=17)
         body.columnconfigure(2, weight=17)
         body.rowconfigure(0, weight=1)
-        
+
+        apply_styles_to_window(self.root)
 
     def _set_balanced_geometry(self) -> None:
         """Mantiene la ventana principal siempre maximizada."""

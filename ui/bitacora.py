@@ -6,8 +6,7 @@ import json
 from openpyxl import Workbook
 
 from config.config import BITACORA_FILE, COLORS
-from ui.styles import build_header
-from ui.window_utils import maximize_window
+from ui.styles import apply_styles_to_window, build_header, set_responsive_geometry
 from utils.data_handler import DataHandler
 
 
@@ -22,9 +21,8 @@ class BitacoraWindow:
     def __init__(self, parent: tk.Tk):
         self.window = tk.Toplevel(parent)
         self.window.title("Bitácora de Auditoría")
-        self.window.geometry("1200x520")
+        set_responsive_geometry(self.window, 1200, 520)
         self.window.configure(bg=COLORS["secondary"])
-        maximize_window(self.window)
 
         self.search_var = tk.StringVar()
         self.operacion_var = tk.StringVar(value="Todos")
@@ -200,6 +198,8 @@ class BitacoraWindow:
             padx=24,
             pady=6,
         ).pack(pady=(10, 0))
+
+        apply_styles_to_window(self.window)
 
     def _on_tree_resize(self, event: tk.Event) -> None:
         if self.tree is None or not self._tree_columns:

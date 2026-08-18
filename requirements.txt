@@ -11,6 +11,11 @@ tkcalendar>=1.6.1
 openpyxl>=3.1.2
 pyodbc>=5.1.0
 #
+# pyinstaller solo se necesita para generar el .exe de entrega, no para
+# correr la app en desarrollo:
+#   pip install pyinstaller
+#   pyinstaller --onefile --windowed --name "Kardex Reactivos" --icon icono.ico main.py
+#
 # Módulos estándar utilizados:
 #   - tkinter     (interfaz gráfica)
 #   - datetime    (manejo de fechas)

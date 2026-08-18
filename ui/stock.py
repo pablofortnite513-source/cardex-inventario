@@ -3,8 +3,7 @@ from datetime import date, datetime
 from tkinter import ttk
 
 from config.config import COLORS, ENTRADAS_FILE, PROVEEDORES_FILE, SALIDAS_FILE, SUSTANCIAS_FILE, UBICACIONES_FILE, UBICACIONES_USO_FILE, UNIDADES_FILE
-from ui.styles import build_header
-from ui.window_utils import maximize_window
+from ui.styles import apply_styles_to_window, apply_zebra_tags, attach_treeview_tooltip, build_header, set_responsive_geometry, zebra_tag
 from utils.data_handler import DataHandler, Lookups, build_location_indexes, build_substance_indexes, location_name, substance_code, substance_name
 
 
@@ -14,9 +13,8 @@ class StockWindow:
     def __init__(self, parent: tk.Tk):
         self.window = tk.Toplevel(parent)
         self.window.title("Stock")
-        self.window.geometry("1440x560")
+        set_responsive_geometry(self.window, 1440, 560)
         self.window.configure(bg=COLORS["secondary"])
-        maximize_window(self.window)
 
         self.search_var = tk.StringVar()
         self.filter_ubicacion_var = tk.StringVar(value="Todos")
@@ -176,12 +174,19 @@ class StockWindow:
             "proveedor": 130,
         }
 
+        numeric_cols = {"entrada", "salida", "stock", "dias_vencer"}
         for col in columns:
             self.tree.heading(col, text=headings[col], command=lambda c=col: self._sort_column(c, False))
-            self.tree.column(col, width=widths[col], anchor="w", minwidth=max(60, int(widths[col] * 0.5)), stretch=True)
+            self.tree.column(
+                col, width=widths[col],
+                anchor="e" if col in numeric_cols else "w",
+                minwidth=max(60, int(widths[col] * 0.5)), stretch=True,
+            )
         self._tree_base_widths = widths
         self.tree.bind("<Configure>", self._on_tree_resize, add="+")
 
+        apply_zebra_tags(self.tree)
+        attach_treeview_tooltip(self.tree, {"cantidad", "nombre", "proveedor", "ubicacion"})
         # Colores solicitados
         self.tree.tag_configure("sin_stock", background="#FFCDD2")     # rojo
         self.tree.tag_configure("stock_bajo", background="#FFE0B2")    # naranja
@@ -232,6 +237,8 @@ class StockWindow:
             padx=24,
             pady=6,
         ).pack(pady=(10, 0))
+
+        apply_styles_to_window(self.window)
 
     def _safe_float(self, value) -> float:
         try:
@@ -390,9 +397,9 @@ class StockWindow:
                 data["lote"],
                 data["unidad"],
                 data["presentacion"],
-                data["entrada"],
-                data["salida"],
-                stock,
+                f"{data['entrada']:,.2f}",
+                f"{data['salida']:,.2f}",
+                f"{stock:,.2f}",
                 self._cantidad_label(stock, data["presentacion"]),
                 data["ubicacion"],
                 fv_display,
@@ -428,8 +435,8 @@ class StockWindow:
         end = start + por_pagina
 
         self.tree.delete(*self.tree.get_children())
-        for row, tags in filtered_rows[start:end]:
-            self.tree.insert("", tk.END, values=row, tags=tags)
+        for idx, (row, tags) in enumerate(filtered_rows[start:end]):
+            self.tree.insert("", tk.END, values=row, tags=(zebra_tag(idx),) + tags)
 
         if self.pag_label is not None:
             self.pag_label.config(text=f"Página {self.pagina_actual} de {self.total_paginas}")

@@ -18,8 +18,7 @@ from config.config import (
     UBICACIONES_USO_FILE,
     UNIDADES_FILE,
 )
-from ui.styles import build_header
-from ui.window_utils import maximize_window
+from ui.styles import apply_styles_to_window, build_header, set_responsive_geometry
 from utils.data_handler import (
     DataHandler,
     Lookups,
@@ -203,9 +202,8 @@ class ReportesWindow:
     def __init__(self, parent: tk.Tk):
         self.window = tk.Toplevel(parent)
         self.window.title("Reportes")
-        self.window.geometry("760x340")
+        set_responsive_geometry(self.window, 760, 340)
         self.window.configure(bg=COLORS["secondary"])
-        maximize_window(self.window)
 
         today = date.today()
         self.mes_var = tk.StringVar(value=MESES[today.month - 1])
@@ -335,6 +333,8 @@ class ReportesWindow:
             padx=20,
             pady=7,
         ).pack(side="right")
+
+        apply_styles_to_window(self.window)
 
     def _update_filter_state(self) -> None:
         mode = self.filtro_var.get()

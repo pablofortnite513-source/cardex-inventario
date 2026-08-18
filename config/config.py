@@ -1,4 +1,5 @@
 # Configuración del Proyecto - CECIF Kardex Inventario
+import sys
 from pathlib import Path
 
 # Colores (basados en imágenes del proyecto)
@@ -22,7 +23,13 @@ PROJECT_NAME = "CECIF - Kardex Reactivos"
 VERSION = "1.0.0"
 
 # Rutas
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# Si la app está empaquetada (PyInstaller), las rutas se anclan a la carpeta
+# del .exe en vez de la carpeta temporal de extracción, para que las
+# imágenes/plantillas/base de datos persistan junto al ejecutable entregado.
+if getattr(sys, "frozen", False):
+    PROJECT_ROOT = Path(sys.executable).resolve().parent
+else:
+    PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = PROJECT_ROOT / "data"
 REPORTES_PATH = PROJECT_ROOT / "reportes"
 IMAGES_PATH = PROJECT_ROOT / "Imagenes"

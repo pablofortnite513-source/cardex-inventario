@@ -1,8 +1,9 @@
 import tkinter as tk
 from tkinter import messagebox
 
-from config.config import COLORS, PROJECT_NAME, USERS_FILE
+from config.config import COLORS, PROJECT_NAME
 from ui.menu import MainMenuWindow
+from ui.styles import apply_styles_to_window
 from utils.data_handler import DataHandler
 
 
@@ -82,7 +83,7 @@ class LoginWindow:
         ).pack(side="left", expand=True, fill="x")
 
         self.user_entry.focus_set()
-        """self.root.bind("<Return>", lambda _: self.validate_login())"""
+        apply_styles_to_window(self.root)
 
     def validate_login(self) -> None:
         usuario = self.user_entry.get().strip()
@@ -91,22 +92,11 @@ class LoginWindow:
         if not usuario or not contrasena:
             messagebox.showerror("Error", "Completa usuario y contrasena")
             return
-        
-       
-        data = DataHandler.load_json(USERS_FILE)
-        usuarios = data.get("usuarios", [])
 
-        user_found = next(
-            (
-                user
-                for user in usuarios
-                if user.get("usuario") == usuario and user.get("contrasena") == contrasena
-            ),
-            None,
-        )
+        user_found = DataHandler.login(usuario, contrasena)
 
         if not user_found:
-            messagebox.showerror("Acceso denegado", "Usuario o contrasena incorrectos")
+            messagebox.showerror("Acceso denegado", "Usuario o contrasena incorrectos, o el usuario está inhabilitado")
             return
 
         for child in self.root.winfo_children():

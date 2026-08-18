@@ -184,6 +184,15 @@ def sync_inventario(entradas_file=None, salidas_file=None, inventario_file=None)
 class DataHandler:
 
     @staticmethod
+    def login(usuario: str, contrasena: str) -> Optional[dict]:
+        """Valida credenciales contra la base de datos (contraseña hasheada + estado habilitado)."""
+        db = get_db()
+        try:
+            return db.get_usuario_login(usuario, contrasena)
+        finally:
+            db.close()
+
+    @staticmethod
     def load_json(file_path) -> dict:
         """Carga datos segun la ruta del archivo (redirige a la base de datos)."""
         route = _route(file_path)

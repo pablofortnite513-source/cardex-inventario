@@ -106,14 +106,110 @@ def setup_ttk_styles(root: tk.Widget) -> None:
         "Treeview",
         background="white",
         foreground="black",
-        rowheight=25,
+        rowheight=30,
         fieldbackground="white",
+        font=("Segoe UI", 10),
+    )
+    style.configure(
+        "Treeview.Heading",
+        font=("Segoe UI", 10, "bold"),
+        background=PINK_LIGHT,
+        foreground="#4a2333",
     )
     style.map(
         "Treeview",
         background=[("selected", COLORS["primary"])],
         foreground=[("selected", "white")],
     )
+    style.map(
+        "Treeview.Heading",
+        background=[("active", PINK)],
+    )
+
+
+ZEBRA_EVEN = "white"
+ZEBRA_ODD = "#F7F4F8"
+
+
+def apply_zebra_tags(tree: ttk.Treeview) -> None:
+    """Configura las franjas alternadas (zebra) de un Treeview. Llamar una vez al crearlo."""
+    tree.tag_configure("zebra_even", background=ZEBRA_EVEN)
+    tree.tag_configure("zebra_odd", background=ZEBRA_ODD)
+
+
+def zebra_tag(index: int) -> str:
+    """Devuelve el tag zebra correspondiente a la fila `index` (0-based)."""
+    return "zebra_even" if index % 2 == 0 else "zebra_odd"
+
+
+def attach_treeview_tooltip(tree: ttk.Treeview, columns: set[str] | None = None) -> None:
+    """Muestra un tooltip con el valor completo de la celda bajo el cursor.
+
+    Pensado para columnas cuyo contenido puede ser más largo que el ancho
+    visible de la columna (ej. "Cantidad" con texto tipo "Hay 3 unidades
+    enteras y 1 iniciada"). Si `columns` es None se aplica a todas las
+    columnas del Treeview.
+    """
+    state: dict = {"win": None, "cell": None}
+
+    def _hide(_event: tk.Event | None = None) -> None:
+        win = state["win"]
+        if win is not None and win.winfo_exists():
+            win.destroy()
+        state["win"] = None
+        state["cell"] = None
+
+    def _show(event: tk.Event) -> None:
+        if tree.identify_region(event.x, event.y) != "cell":
+            _hide()
+            return
+        row_id = tree.identify_row(event.y)
+        col_id = tree.identify_column(event.x)
+        if not row_id or not col_id:
+            _hide()
+            return
+        try:
+            col_index = int(col_id.replace("#", "")) - 1
+            col_name = tree["columns"][col_index]
+        except (ValueError, IndexError):
+            _hide()
+            return
+        if columns is not None and col_name not in columns:
+            _hide()
+            return
+
+        cell = (row_id, col_name)
+        if state["cell"] == cell:
+            return
+
+        value = str(tree.set(row_id, col_name)).strip()
+        _hide()
+        if not value:
+            return
+
+        top = tk.Toplevel(tree)
+        top.overrideredirect(True)
+        top.attributes("-topmost", True)
+        tk.Label(
+            top,
+            text=value,
+            bg="#FFF8C6",
+            fg="#222222",
+            relief="solid",
+            bd=1,
+            padx=6,
+            pady=4,
+            font=("Segoe UI", 9),
+            wraplength=320,
+            justify="left",
+        ).pack()
+        top.geometry(f"+{event.x_root + 14}+{event.y_root + 12}")
+        state["win"] = top
+        state["cell"] = cell
+
+    tree.bind("<Motion>", _show, add="+")
+    tree.bind("<Leave>", _hide, add="+")
+    tree.bind("<Button-1>", _hide, add="+")
 
 
 def apply_hover_button(btn: tk.Button, normal_bg: str | None = None) -> None:
@@ -183,6 +279,31 @@ def _darken(hex_color: str, factor: float = 0.12) -> str:
         return f"#{r:02x}{g:02x}{b:02x}"
     except (ValueError, TypeError):
         return hex_color
+
+
+# ── Geometría responsive ──────────────────────────────────────
+
+def set_responsive_geometry(window: tk.Toplevel, width: int, height: int, min_ratio: float = 0.6) -> None:
+    """Ajusta y centra la ventana según la resolución real de pantalla.
+
+    `width`/`height` son el tamaño ideal (el que antes se pasaba fijo a
+    `.geometry()`); se reduce automáticamente si no cabe en la pantalla
+    del usuario (portátiles con resoluciones pequeñas), evitando que
+    queden botones u otros controles fuera de vista.
+    """
+    window.update_idletasks()
+    screen_w = window.winfo_screenwidth()
+    screen_h = window.winfo_screenheight()
+
+    max_w = int(screen_w * 0.95)
+    max_h = int(screen_h * 0.90)
+
+    final_w = max(min(width, max_w), min(int(width * min_ratio), max_w))
+    final_h = max(min(height, max_h), min(int(height * min_ratio), max_h))
+
+    pos_x = max((screen_w - final_w) // 2, 0)
+    pos_y = max((screen_h - final_h) // 2, 0)
+    window.geometry(f"{final_w}x{final_h}+{pos_x}+{pos_y}")
 
 
 # ── Header con logo ──────────────────────────────────────────
